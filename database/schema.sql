@@ -626,17 +626,42 @@ END$$
 -- Prevent creating targets between unrelated networks.
 CREATE PROCEDURE sp_AddLoadBalancerTarget(IN p_lb_id INT, IN p_vm_id INT)
 BEGIN
-    DECLARE v_lb_vnet INT DEFAULT NULL;
-    DECLARE v_vm_vnet INT DEFAULT NULL;
-    SELECT MAX(vnet_id) INTO v_lb_vnet FROM LoadBalancers WHERE lb_id=p_lb_id;
-    SELECT MAX(s.vnet_id) INTO v_vm_vnet
-    FROM VirtualMachines vm JOIN Subnets s ON s.subnet_id=vm.subnet_id
-    WHERE vm.vm_id=p_vm_id;
-    IF v_lb_vnet IS NULL OR v_vm_vnet IS NULL OR v_lb_vnet <> v_vm_vnet THEN
-        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='VM must belong to load balancer VNet';
+    DECLARE v_valid INT DEFAULT 0;
+
+    IF p_lb_id IS NULL OR p_vm_id IS NULL THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Load Balancer ID and VM ID are required';
     END IF;
-    INSERT INTO LoadBalancerTargets(lb_id, vm_id) VALUES(p_lb_id, p_vm_id);
+
+    SELECT COUNT(*) INTO v_valid
+    FROM LoadBalancers lb
+    JOIN VirtualNetworks n ON n.vnet_id = lb.vnet_id
+    JOIN ResourceGroups g ON g.group_id = n.group_id
+    JOIN ResourceRegistry lr ON lr.lb_id = lb.lb_id
+    JOIN VirtualMachines vm ON vm.vm_id = p_vm_id
+    JOIN Subnets s ON s.subnet_id = vm.subnet_id
+    JOIN ResourceRegistry vr ON vr.vm_id = vm.vm_id
+    WHERE lb.lb_id = p_lb_id
+      AND lb.vnet_id = s.vnet_id
+      AND n.status = 'active'
+      AND g.status = 'active'
+      AND s.status = 'active'
+      AND lr.status NOT IN ('cancelled','deleted')
+      AND vr.status NOT IN ('cancelled','deleted');
+
+    IF v_valid <> 1 THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT='Both resources must be registered, not cancelled, and in the same active VNet';
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM LoadBalancerTargets
+        WHERE lb_id = p_lb_id AND vm_id = p_vm_id
+    ) THEN
+        INSERT INTO LoadBalancerTargets (lb_id, vm_id)
+        VALUES (p_lb_id, p_vm_id);
+    END IF;
 END$$
+
 
 -- Soft cancellation: close usage intervals and release host reservation.
 -- Backend should calculate any relevant usage snapshot before cancellation.
@@ -645,83 +670,115 @@ CREATE PROCEDURE sp_CancelResource(
     IN p_actor_user_id INT
 )
 BEGIN
-    DECLARE v_type VARCHAR(30);
-    DECLARE v_status VARCHAR(20);
-    DECLARE v_customer_id INT;
-    DECLARE v_vm_id INT;
-    DECLARE v_lb_id INT;
-    DECLARE v_blob_id INT;
-    DECLARE v_file_id INT;
-    DECLARE v_db_id INT;
-    DECLARE v_webapp_id INT;
+    DECLARE v_type VARCHAR(30) DEFAULT NULL;
+    DECLARE v_status VARCHAR(20) DEFAULT NULL;
+    DECLARE v_customer_id INT DEFAULT NULL;
+    DECLARE v_vm_id INT DEFAULT NULL;
+    DECLARE v_lb_id INT DEFAULT NULL;
+    DECLARE v_blob_id INT DEFAULT NULL;
+    DECLARE v_file_id INT DEFAULT NULL;
+    DECLARE v_db_id INT DEFAULT NULL;
+    DECLARE v_webapp_id INT DEFAULT NULL;
     DECLARE v_actor_role VARCHAR(20) DEFAULT NULL;
+    DECLARE v_vm_host_id INT DEFAULT NULL;
+    DECLARE v_host_lock_id INT DEFAULT NULL;
+    DECLARE v_dependent_apps INT DEFAULT 0;
     DECLARE v_missing BOOLEAN DEFAULT FALSE;
     DECLARE v_now DATETIME;
-    DECLARE CONTINUE HANDLER FOR NOT FOUND SET v_missing=TRUE;
+    DECLARE CONTINUE HANDLER FOR NOT FOUND SET v_missing = TRUE;
     DECLARE EXIT HANDLER FOR SQLEXCEPTION
     BEGIN
         ROLLBACK;
         RESIGNAL;
     END;
-    SET v_now=CURRENT_TIMESTAMP;
+
+    IF p_resource_id IS NULL OR p_actor_user_id IS NULL THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT='Resource ID and actor user ID are required';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM Users WHERE user_id = p_actor_user_id) THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT='Actor user does not exist';
+    END IF;
+
+    SET v_now = CURRENT_TIMESTAMP;
     START TRANSACTION;
-    SELECT role INTO v_actor_role FROM Users WHERE user_id=p_actor_user_id;
-    SET v_missing=FALSE;
+
+    SELECT role INTO v_actor_role FROM Users WHERE user_id = p_actor_user_id;
+    SET v_missing = FALSE;
     SELECT resource_type, status, customer_user_id, vm_id, lb_id,
            blob_id, file_id, database_id, webapp_id
-    INTO v_type,v_status,v_customer_id,v_vm_id,v_lb_id,
-         v_blob_id,v_file_id,v_db_id,v_webapp_id
-    FROM ResourceRegistry WHERE resource_id=p_resource_id FOR UPDATE;
+    INTO v_type, v_status, v_customer_id, v_vm_id, v_lb_id,
+         v_blob_id, v_file_id, v_db_id, v_webapp_id
+    FROM ResourceRegistry
+    WHERE resource_id = p_resource_id FOR UPDATE;
+
     IF v_missing THEN
-        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Resource not found';
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='ResourceRegistry resource ID not found';
     END IF;
-    IF p_actor_user_id <> v_customer_id AND COALESCE(v_actor_role,'') <> 'admin' THEN
-        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Not allowed to cancel this resource';
+    IF p_actor_user_id <> v_customer_id AND v_actor_role <> 'admin' THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Actor is not allowed to cancel this resource';
     END IF;
     IF v_status IN ('cancelled','deleted') THEN
-        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Resource already cancelled or deleted';
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Resource is already cancelled or deleted';
     END IF;
-    UPDATE ResourceRegistry
-    SET status='cancelled', cancelled_at=v_now
-    WHERE resource_id=p_resource_id;
-    UPDATE ResourceUsagePeriods SET ended_at=v_now
-    WHERE resource_id=p_resource_id AND ended_at IS NULL;
-    IF v_vm_id IS NOT NULL THEN
-        -- Lock provider host before releasing reservation; same lock as allocation.
-        UPDATE ProviderHosts SET host_id=host_id
-        WHERE host_id=(SELECT host_id FROM VirtualMachines WHERE vm_id=v_vm_id);
-        DELETE FROM LoadBalancerTargets WHERE vm_id=v_vm_id;
-        UPDATE VirtualMachines SET status='stopped' WHERE vm_id=v_vm_id;
-        UPDATE VmUsage SET stopped_at=v_now
-        WHERE vm_id=v_vm_id AND stopped_at IS NULL;
-        UPDATE HostCapacityAllocations SET released_at=v_now
-        WHERE vm_id=v_vm_id AND released_at IS NULL;
-    ELSEIF v_lb_id IS NOT NULL THEN
-        UPDATE LoadBalancers SET status='inactive' WHERE lb_id=v_lb_id;
-    ELSEIF v_blob_id IS NOT NULL THEN
-        UPDATE BlobStorage SET status='inactive' WHERE blob_id=v_blob_id;
-    ELSEIF v_file_id IS NOT NULL THEN
-        UPDATE FileStorage SET status='inactive' WHERE file_id=v_file_id;
-    ELSEIF v_db_id IS NOT NULL THEN
-        IF EXISTS (
-            SELECT 1 FROM WebApps w
-            JOIN ResourceRegistry reg ON reg.webapp_id=w.webapp_id
-            WHERE w.database_id=v_db_id AND reg.status NOT IN ('deleted','cancelled')
-        ) THEN
-            SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Cancel dependent Web Apps first';
+    -- Check dependencies BEFORE changing anything.
+    IF v_db_id IS NOT NULL THEN
+        SELECT COUNT(*) INTO v_dependent_apps
+        FROM WebApps w
+        LEFT JOIN ResourceRegistry reg ON reg.webapp_id = w.webapp_id
+        WHERE w.database_id = v_db_id
+          AND (reg.resource_id IS NULL OR reg.status NOT IN ('cancelled','deleted'));
+        IF v_dependent_apps > 0 THEN
+            SIGNAL SQLSTATE '45000'
+                SET MESSAGE_TEXT='Cancel Web Apps connected to this database first';
         END IF;
-        UPDATE ManagedDatabases SET status='stopped' WHERE database_id=v_db_id;
-    ELSEIF v_webapp_id IS NOT NULL THEN
-        UPDATE WebApps SET status='stopped' WHERE webapp_id=v_webapp_id;
     END IF;
+    IF v_vm_id IS NOT NULL THEN
+        -- Serialize release with VM capacity allocation on the host.
+        SELECT host_id INTO v_vm_host_id
+        FROM VirtualMachines WHERE vm_id = v_vm_id;
+        SELECT host_id INTO v_host_lock_id
+        FROM ProviderHosts WHERE host_id = v_vm_host_id FOR UPDATE;
+        -- A cancelled VM cannot remain a target of another LB.
+        DELETE FROM LoadBalancerTargets WHERE vm_id = v_vm_id;
+        UPDATE VirtualMachines SET status = 'stopped' WHERE vm_id = v_vm_id;
+        UPDATE VmUsage SET stopped_at = GREATEST(started_at, v_now)
+        WHERE vm_id = v_vm_id AND stopped_at IS NULL;
+        UPDATE HostCapacityAllocations
+        SET released_at = GREATEST(allocated_at, v_now)
+        WHERE vm_id = v_vm_id AND released_at IS NULL;
+    ELSEIF v_lb_id IS NOT NULL THEN
+        -- A cancelled LB must not retain active target relations.
+        DELETE FROM LoadBalancerTargets WHERE lb_id = v_lb_id;
+        UPDATE LoadBalancers SET status = 'inactive' WHERE lb_id = v_lb_id;
+    ELSEIF v_blob_id IS NOT NULL THEN
+        UPDATE BlobStorage SET status = 'inactive' WHERE blob_id = v_blob_id;
+    ELSEIF v_file_id IS NOT NULL THEN
+        UPDATE FileStorage SET status = 'inactive' WHERE file_id = v_file_id;
+    ELSEIF v_db_id IS NOT NULL THEN
+        UPDATE ManagedDatabases SET status = 'stopped' WHERE database_id = v_db_id;
+    ELSEIF v_webapp_id IS NOT NULL THEN
+        UPDATE WebApps SET status = 'stopped' WHERE webapp_id = v_webapp_id;
+    END IF;
+
+    UPDATE ResourceUsagePeriods
+    SET ended_at = GREATEST(started_at, v_now)
+    WHERE resource_id = p_resource_id AND ended_at IS NULL;
+
+    UPDATE ResourceRegistry
+    SET status = 'cancelled', cancelled_at = v_now
+    WHERE resource_id = p_resource_id;
+
     INSERT INTO ResourceActivityLogs
         (actor_user_id, resource_id, entity_type, entity_pk,
          action, old_status, new_status)
-    VALUES(p_actor_user_id,p_resource_id,v_type,
-           COALESCE(v_vm_id,v_lb_id,v_blob_id,v_file_id,v_db_id,v_webapp_id),
-           'cancelled',v_status,'cancelled');
+    VALUES (p_actor_user_id, p_resource_id, v_type,
+            COALESCE(v_vm_id,v_lb_id,v_blob_id,v_file_id,v_db_id,v_webapp_id),
+            'cancelled',v_status,'cancelled');
     COMMIT;
 END$$
+
 
 DELIMITER ;
 

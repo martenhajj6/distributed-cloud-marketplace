@@ -4,7 +4,7 @@ const path = require('path');
 const db = require('./db');
 
 const app = express();
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 1337;
 
 app.use(express.json());
 
@@ -38,7 +38,7 @@ app.get('/api/db-health', async (req, res) => {
 // Serve frontend
 app.use(express.static(path.join(__dirname, '../frontend')));
 
-app.listen(port, '127.0.0.1', () => {
+app.listen(port, '0.0.0.0', () => {
     console.log(`Server running at http://localhost:${port}`);
 });
 

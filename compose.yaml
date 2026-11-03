@@ -1,0 +1,39 @@
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    image: distributed-cloud-marketplace-backend:dev
+
+    ports:
+      - "127.0.0.1:3001:1337"
+
+    environment:
+      PORT: "1337"
+      DB_HOST: "db"
+      DB_PORT: "3306"
+      DB_USER: "marketplace_app"
+      DB_PASSWORD: "${DB_PASSWORD:?DB_PASSWORD missing in .env}"
+      DB_NAME: "DistributedCloudMarketplace"
+
+    depends_on:
+      - db
+
+    restart: unless-stopped
+
+  db:
+    image: mysql:8.4
+
+    environment:
+      MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD missing in .env}"
+
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+    restart: unless-stopped
+
+volumes:
+  mysql_data:
+

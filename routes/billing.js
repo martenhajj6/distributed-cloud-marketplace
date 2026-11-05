@@ -1,9 +1,7 @@
 const express = require("express");
 const db = require("../db");
-const { HttpError, sendError } = require("../services/errors");
-const { isDate, positiveInteger } = require("../services/util");
+const { HttpError, sendError, isDate, positiveInteger, logAudit } = require("../services/util");
 const { withTransaction } = require("../services/tx");
-const { logAudit } = require("../services/audit");
 const discounts = require("../services/discountService");
 const billing = require("../services/billingService");
 const usageBilling = require("../services/usageBillingService");

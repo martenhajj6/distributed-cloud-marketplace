@@ -3,8 +3,7 @@
 // exists in exactly one place.
 const crypto = require("crypto");
 const db = require("../db");
-const { HttpError } = require("./errors");
-const { money } = require("./util");
+const { HttpError, money } = require("./util");
 const { withTransaction } = require("./tx");
 
 // ---------------------------------------------------------------------------

@@ -8,8 +8,6 @@ const billingRoutes = require("./routes/billing");
 const financeRoutes = require("./routes/finance");
 const customerRoutes = require("./routes/customer");
 const providerRoutes = require("./routes/provider");
-const notificationRoutes = require("./routes/notifications");
-const discountRoutes = require("./routes/discounts");
 const adminRoutes = require("./routes/admin");
 const { authenticate, requireRole } = require("./middleware/access");
 
@@ -37,8 +35,8 @@ app.use("/api/finance", authenticate, requireRole("Admin"), financeRoutes);
 app.use("/api/admin", authenticate, requireRole("Admin"), adminRoutes);
 app.use("/api/customers/me", authenticate, requireRole("Customer"), customerRoutes);
 app.use("/api/providers/me", authenticate, requireRole("Provider"), providerRoutes);
-app.use("/api/notifications", authenticate, notificationRoutes);
-app.use("/api/discounts", authenticate, discountRoutes);
+app.use("/api/notifications", authenticate, customerRoutes.notificationsRouter);
+app.use("/api/discounts", authenticate, adminRoutes.discountsRouter);
 
 const port = Number(process.env.PORT) || 3000;
 app.listen(port, () => {

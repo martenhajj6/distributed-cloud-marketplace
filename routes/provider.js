@@ -1,8 +1,7 @@
 // Provider self-service routes: /api/providers/me/...
 // Mounted behind authenticate + requireRole("Provider"); req.user.id is the provider.
 const express = require("express");
-const { sendError } = require("../services/errors");
-const { money } = require("../services/util");
+const { sendError, money } = require("../services/util");
 const finance = require("../services/financeService");
 
 const router = express.Router();

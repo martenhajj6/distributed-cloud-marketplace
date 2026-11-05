@@ -1,7 +1,7 @@
 const express = require("express");
 const db = require("../db");
 const { requireRole } = require("../middleware/access");
-const { logAudit } = require("../services/audit");
+const { logAudit } = require("../services/util");
 
 const router = express.Router();
 // Reading prices and estimating a price is open to every logged-in user (server.js adds authenticate).

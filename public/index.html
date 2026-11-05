@@ -1,1 +1,73 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>CortexOps | Financial Console</title><link rel="stylesheet" href="/style.css"></head><body><div class="app"><aside class="sidebar"><div class="brand"><span class="brandmark">◈</span> CortexOps <small>FINANCIAL CONSOLE</small></div><div class="section-label">WORKSPACE</div><nav id="nav"></nav><div class="sidebar-bottom"><div class="avatar">CO</div><div><b>Cloud Marketplace</b><small>Simulated platform</small></div></div></aside><main class="main"><header class="top"><div class="crumb">CortexOps <span>/</span> <strong id="crumb">Overview</strong></div><div class="top-actions"><span class="env">● Development environment</span><button class="iconbtn" id="reload" title="Refresh">↻</button><div class="avatar small">CO</div></div></header><div class="content"><div class="heading"><div><div class="eyebrow" id="eyebrow">FINANCIAL OPERATIONS</div><h1 id="pageTitle">Overview</h1><p id="subtitle">Manage your cloud marketplace financial operations.</p></div><div id="headingAction"></div></div><div class="notice" id="notice" hidden></div><section id="view"></section></div></main></div><dialog id="modal"><form id="dynamicForm"><div class="modalhead"><h2 id="modalTitle"></h2><button type="button" class="iconbtn" id="closeModal">×</button></div><div id="fields"></div><div class="modalfoot"><button type="button" class="btn secondary" id="cancelModal">Cancel</button><button class="btn primary" type="submit">Save changes</button></div></form></dialog><script src="/app.js"></script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CortexOps | Financial Console</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brandmark">◈</span> CortexOps
+        <small>FINANCIAL CONSOLE</small>
+      </div>
+
+      <div class="section-label">WORKSPACE</div>
+      <nav id="nav"></nav>
+
+      <div class="sidebar-bottom">
+        <div class="avatar">CO</div>
+        <div>
+          <b>Cloud Marketplace</b>
+          <small>Simulated platform</small>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="top">
+        <div class="crumb">
+          CortexOps <span>/</span> <strong id="crumb">Overview</strong>
+        </div>
+        <div class="top-actions">
+          <span class="env">● Development environment</span>
+          <button class="iconbtn" id="reload" title="Refresh">↻</button>
+          <div class="avatar small">CO</div>
+        </div>
+      </header>
+
+      <div class="content">
+        <div class="heading">
+          <div>
+            <div class="eyebrow" id="eyebrow">FINANCIAL OPERATIONS</div>
+            <h1 id="pageTitle">Overview</h1>
+            <p id="subtitle">Manage your cloud marketplace financial operations.</p>
+          </div>
+          <div id="headingAction"></div>
+        </div>
+
+        <div class="notice" id="notice" hidden></div>
+        <section id="view"></section>
+      </div>
+    </main>
+  </div>
+
+  <dialog id="modal">
+    <form id="dynamicForm">
+      <div class="modalhead">
+        <h2 id="modalTitle"></h2>
+        <button type="button" class="iconbtn" id="closeModal">×</button>
+      </div>
+      <div id="fields"></div>
+      <div class="modalfoot">
+        <button type="button" class="btn secondary" id="cancelModal">Cancel</button>
+        <button class="btn primary" type="submit">Save changes</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="/app.js"></script>
+</body>
+</html>

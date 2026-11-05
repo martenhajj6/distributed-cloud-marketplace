@@ -2,8 +2,8 @@
 // server.js mounts this behind authenticate + requireRole("Customer"), so req.user.id is the customer.
 // A customer can only ever see or request things that belong to their own id.
 const express = require("express");
-const db = require("../db");
-const { sendError, positiveInteger } = require("../services/util");
+const db = require("../config/db");
+const { sendError, positiveInteger } = require("../utils/util");
 const billing = require("../services/billingService");
 const finance = require("../services/financeService");
 
@@ -55,7 +55,7 @@ router.post("/refunds", async (req, res) => {
     const request = await finance.createRefundRequest({ customerId: req.user.id, paymentId, amount, reason });
     res.status(201).json({ message: "Refund request submitted. An administrator will review it.", ...request });
   } catch (error) {
-    return sendError(res, error, "Could not submit refund request. Run sql/usage_refunds_audit.sql first.");
+    return sendError(res, error, "Could not submit refund request. Run database/migrations/usage_refunds_audit.sql first.");
   }
 });
 

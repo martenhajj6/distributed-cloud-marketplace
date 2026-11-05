@@ -1,7 +1,7 @@
 // Admin-only routes: /api/admin/... (mounted behind authenticate + requireRole("Admin")).
 const express = require("express");
-const db = require("../db");
-const { sendError, positiveInteger, money, logAudit } = require("../services/util");
+const db = require("../config/db");
+const { sendError, positiveInteger, money, logAudit } = require("../utils/util");
 const { requireRole } = require("../middleware/access");
 const discounts = require("../services/discountService");
 const finance = require("../services/financeService");
@@ -44,7 +44,7 @@ router.get("/dashboard", async (req, res) => {
     const [totals, providers] = await Promise.all([finance.getDashboard(), finance.getEarnings()]);
     res.json({ ...totals, providers });
   } catch (error) {
-    return sendError(res, error, "Could not load the dashboard. Run all SQL scripts through sql/usage_refunds_audit.sql.");
+    return sendError(res, error, "Could not load the dashboard. Run all SQL scripts through database/migrations/usage_refunds_audit.sql.");
   }
 });
 
@@ -67,7 +67,7 @@ router.get("/audit-log", async (req, res) => {
     );
     res.json(rows.map(row => ({ ...row, details: row.details ? JSON.parse(row.details) : null })));
   } catch (error) {
-    return sendError(res, error, "Could not load the audit log. Run sql/usage_refunds_audit.sql first.");
+    return sendError(res, error, "Could not load the audit log. Run database/migrations/usage_refunds_audit.sql first.");
   }
 });
 
@@ -125,7 +125,7 @@ discountRouter.get("/", requireRole("Admin"), async (req, res) => {
   try {
     const [rows] = await db.execute(`SELECT ${SELECT_FIELDS} FROM discount_codes ORDER BY id DESC`);
     res.json(rows);
-  } catch (error) { return sendError(res, error, "Could not load discount codes. Run sql/discounts_notifications_dashboard.sql first."); }
+  } catch (error) { return sendError(res, error, "Could not load discount codes. Run database/migrations/discounts_notifications_dashboard.sql first."); }
 });
 
 // Admin: create a discount code.
@@ -190,7 +190,7 @@ discountRouter.post("/validate", async (req, res) => {
       Object.assign(result, { subtotal, discount_amount: discountAmount, total: Math.max(0, money(subtotal - discountAmount)), currency: "USD" });
     }
     res.json(result);
-  } catch (error) { return sendError(res, error, "Could not validate discount code. Run sql/discounts_notifications_dashboard.sql first."); }
+  } catch (error) { return sendError(res, error, "Could not validate discount code. Run database/migrations/discounts_notifications_dashboard.sql first."); }
 });
 
 // Export both routers from this file.

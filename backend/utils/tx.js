@@ -1,4 +1,4 @@
-const db = require("../db");
+const db = require("../config/db");
 
 // Runs fn(connection) inside one transaction: commit on success, rollback if anything throws.
 async function withTransaction(fn) {

@@ -1,7 +1,7 @@
 const express = require("express");
-const db = require("../db");
-const { HttpError, sendError, isDate, positiveInteger, logAudit } = require("../services/util");
-const { withTransaction } = require("../services/tx");
+const db = require("../config/db");
+const { HttpError, sendError, isDate, positiveInteger, logAudit } = require("../utils/util");
+const { withTransaction } = require("../utils/tx");
 const discounts = require("../services/discountService");
 const billing = require("../services/billingService");
 const usageBilling = require("../services/usageBillingService");
@@ -77,7 +77,7 @@ router.post("/usage-invoices", async (req, res) => {
     });
     return res.status(201).json({ message: "Usage-based simulated invoice generated", ...invoice });
   } catch (error) {
-    return sendError(res, error, "Could not generate usage invoice. Run sql/usage_refunds_audit.sql first.");
+    return sendError(res, error, "Could not generate usage invoice. Run database/migrations/usage_refunds_audit.sql first.");
   }
 });
 
@@ -91,7 +91,7 @@ router.get("/invoices", async (req, res) => {
     res.json(await billing.listInvoices(db, customerId));
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: "Could not load invoices. Run sql/02_create_billing_tables.sql first." });
+    res.status(500).json({ error: "Could not load invoices. Run database/schema.sql first." });
   }
 });
 

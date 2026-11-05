@@ -8,7 +8,7 @@
 //  * Other resources (resource_usage_periods, e.g. storage volumes) are billed for as long as they exist.
 //  * The billing period is [start 00:00, end 00:00). Usage that falls outside it is ignored, and open
 //    intervals (no end yet) are counted up to the end of the period, or up to "now" if the period is not over.
-const { HttpError, money } = require("./util");
+const { HttpError, money } = require("../utils/util");
 const discounts = require("./discountService");
 const { priceItems, createInvoiceRecord } = require("./billingService");
 

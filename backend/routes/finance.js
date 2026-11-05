@@ -3,9 +3,9 @@
 // customer, provider, notification and admin routes.
 const express = require("express");
 const crypto = require("crypto");
-const db = require("../db");
-const { HttpError, sendError, money, positiveInteger, logAudit } = require("../services/util");
-const { withTransaction } = require("../services/tx");
+const db = require("../config/db");
+const { HttpError, sendError, money, positiveInteger, logAudit } = require("../utils/util");
+const { withTransaction } = require("../utils/tx");
 const finance = require("../services/financeService");
 
 const router = express.Router();
@@ -112,7 +112,7 @@ router.post("/payments", async (req, res) => {
     return res.status(201).json(result);
   } catch (error) {
     if (error.code === "ER_DUP_ENTRY") return res.status(409).json({ error: "This invoice already has a payment." });
-    return sendError(res, error, "Could not simulate payment. Run sql/03_create_finance_tables.sql first.");
+    return sendError(res, error, "Could not simulate payment. Run database/schema.sql first.");
   }
 });
 
@@ -144,7 +144,7 @@ router.post("/refunds", async (req, res) => {
     });
     return res.status(201).json({ message: "Simulated refund recorded; no real money was transferred.", ...refund });
   } catch (error) {
-    return sendError(res, error, "Could not record refund. Run sql/03_create_finance_tables.sql first.");
+    return sendError(res, error, "Could not record refund. Run database/schema.sql first.");
   }
 });
 
@@ -250,7 +250,7 @@ router.post("/discount-codes", async (req, res) => {
     res.status(201).json({ message: "Discount code created.", id: created, code, discount_type: discountType, discount_value: discountValue, max_uses: maxUses, expires_at: expiresAt, active: true });
   } catch (error) {
     if (error.code === "ER_DUP_ENTRY") return res.status(409).json({ error: "That discount code already exists." });
-    return sendError(res, error, "Could not create discount code. Run sql/04_discounts_notifications_dashboard.sql first.");
+    return sendError(res, error, "Could not create discount code. Run database/schema.sql first.");
   }
 });
 
@@ -294,7 +294,7 @@ router.get("/notifications", async (req, res) => {
     res.json(await finance.listNotifications({ recipientType, recipientId, unreadOnly }));
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: "Could not load notifications. Run sql/04_discounts_notifications_dashboard.sql first." });
+    res.status(500).json({ error: "Could not load notifications. Run database/schema.sql first." });
   }
 });
 
@@ -317,7 +317,7 @@ router.get("/dashboard", async (req, res) => {
     res.json(await finance.getDashboard());
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: "Could not load dashboard totals. Run all SQL scripts through sql/usage_refunds_audit.sql." });
+    res.status(500).json({ error: "Could not load dashboard totals. Run all SQL scripts through database/migrations/usage_refunds_audit.sql." });
   }
 });
 

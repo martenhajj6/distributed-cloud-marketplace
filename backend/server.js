@@ -1,6 +1,7 @@
-require("dotenv").config();
+require("dotenv").config({ path: require("path").join(__dirname, ".env") });
 
 const express = require("express");
+const path = require("path");
 const swaggerUi = require("swagger-ui-express");
 const swaggerSpec = require("./swagger");
 const pricingRoutes = require("./routes/pricing");
@@ -13,14 +14,14 @@ const { authenticate, requireRole } = require("./middleware/access");
 
 const app = express();
 app.use(express.json());
-app.use(express.static(require("path").join(__dirname, "public")));
+app.use(express.static(path.join(__dirname, "..", "frontend")));
 
 // Interactive API documentation. Keep this before app.listen().
 app.get("/api-docs.json", (req, res) => res.json(swaggerSpec));
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec, { explorer: true }));
 
 app.get("/", (req, res) => {
-  res.sendFile(require("path").join(__dirname, "public", "index.html"));
+  res.sendFile(path.join(__dirname, "..", "frontend", "index.html"));
 });
 
 app.get("/api/health", (req, res) => {

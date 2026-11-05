@@ -36,7 +36,7 @@ function normalizeUser(raw) {
 
 function loadDeveloper1Middleware() {
   if (!process.env.DEVELOPER1_AUTH_PATH) return null;
-  const loaded = require(path.resolve(process.env.DEVELOPER1_AUTH_PATH));
+  const loaded = require(path.resolve(__dirname, "..", process.env.DEVELOPER1_AUTH_PATH));
   const middleware = typeof loaded === "function" ? loaded : loaded[process.env.DEVELOPER1_AUTH_EXPORT];
   if (typeof middleware !== "function") {
     throw new Error("DEVELOPER1_AUTH_PATH must export a middleware function (set DEVELOPER1_AUTH_EXPORT if it exports an object).");

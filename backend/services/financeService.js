@@ -2,9 +2,9 @@
 // /api/notifications and /api/admin routes all call these functions, so each business rule
 // exists in exactly one place.
 const crypto = require("crypto");
-const db = require("../db");
-const { HttpError, money } = require("./util");
-const { withTransaction } = require("./tx");
+const db = require("../config/db");
+const { HttpError, money } = require("../utils/util");
+const { withTransaction } = require("../utils/tx");
 
 // ---------------------------------------------------------------------------
 // Payments

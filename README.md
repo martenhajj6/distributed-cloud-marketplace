@@ -1,3 +1,24 @@
+# Distributed Cloud Marketplace — Financial Module
+
+## Project structure (three tiers)
+
+- `frontend/` — HTML interface (`index.html`), `css/`, `js/`, and reserved `views/` for future EJS pages.
+- `backend/` — Express API, `routes/`, `services/`, `middleware/`, `config/db.js`, and `utils/`.
+- `database/` — `schema.sql` (combined finance schema), `seed.sql` (optional test data), and original scripts under `migrations/`.
+- `backend/controllers/` is reserved for future controller extraction; existing route handlers were not rewritten.
+
+### Quick start — local Windows / VS Code
+
+1. Open `backend/` in a terminal and run `npm install`.
+2. Copy `backend/.env.example` to `backend/.env` and set your MySQL credentials.
+3. Run `database/schema.sql` in MySQL Workbench **only after confirming compatibility with your teammate's existing tables**. Alternatively run individual files in `database/migrations/` in the documented order. **Do not run both.**
+4. Run `npm run dev` from `backend/`.
+5. Visit `http://localhost:3000/` and `http://localhost:3000/api-docs`.
+
+**Integration notes:** The uploaded ZIP contained only the financial module, not Developer 1's core marketplace, controllers, or EJS pages. The structure leaves space for them without inventing backend behavior.
+
+---
+
 # Cloud Marketplace API
 
 A beginner-friendly Express/MySQL API for resource pricing and history, simulated billing and invoices, simulated payments/refunds, platform commissions, provider earnings, and withdrawal requests. **All money movement is simulated; this project does not charge or transfer real money.**
@@ -8,17 +29,17 @@ A beginner-friendly Express/MySQL API for resource pricing and history, simulate
 - MySQL Server 8 and MySQL Workbench
 - VS Code
 
-1. Extract the ZIP and open the `cloudmarketplace` folder in VS Code.
-2. Run `npm install` in the terminal.
-3. Copy `.env.example` to `.env` and set your MySQL credentials. Keep `.env` private.
+1. Extract the ZIP and open the `distributed-cloud-marketplace` folder in VS Code.
+2. Run `cd backend` then `npm install` in the terminal.
+3. Copy `backend/.env.example` to `backend/.env` and set your MySQL credentials. Keep `.env` private.
 4. If your team already has a shared database, use that schema rather than creating a separate one. These scripts target `cloud_marketplace`; confirm with your teammate before running them.
 5. Run the SQL scripts in MySQL Workbench **in this order**:
-   - `sql/pricing_tables.sql`
-   - `sql/billing_tables.sql`
-   - `sql/finance_tables.sql`
-   - `sql/discounts_notifications_dashboard.sql` (Task 5; run once after Task 4)
-   - `sql/usage_refunds_audit.sql` (Task 6: usage billing, refund requests, audit log; safe to re-run)
-   - optional, development only: `sql/seed_usage_test_data.sql` (fake VM/storage usage for testing)
+   - `database/migrations/pricing_tables.sql`
+   - `database/migrations/billing_tables.sql`
+   - `database/migrations/finance_tables.sql`
+   - `database/migrations/discounts_notifications_dashboard.sql` (Task 5; run once after Task 4)
+   - `database/migrations/usage_refunds_audit.sql` (Task 6: usage billing, refund requests, audit log; safe to re-run)
+   - optional, development only: `database/migrations/seed_usage_test_data.sql` (fake VM/storage usage for testing)
 6. Start the API with `npm run dev`.
 
 Check `http://localhost:3000/`, `http://localhost:3000/api/health`, and `http://localhost:3000/api/pricing`.
@@ -44,7 +65,7 @@ Example `POST /api/pricing/calculate` body:
 
 ## 3. Billing and invoices
 
-Run `sql/billing_tables.sql` after the pricing script. The database name is `cloud_marketplace` (not `marketplace`).
+Run `database/migrations/billing_tables.sql` after the pricing script. The database name is `cloud_marketplace` (not `marketplace`).
 
 - `POST /api/billing/invoices` — create a billing period and simulated invoice.
 - `GET /api/billing/invoices` — list invoices.
@@ -69,7 +90,7 @@ The example uses `customer_id: 1` as demo input only; the administrative endpoin
 
 ## 4. Simulated payments, refunds, earnings and withdrawals
 
-Run `sql/finance_tables.sql` **after** the billing script. Configure the platform commission percentage in `.env` using `PLATFORM_COMMISSION_RATE=15` (the default is 15%). A provider's net earning is its allocated gross amount minus the platform commission.
+Run `database/migrations/finance_tables.sql` **after** the billing script. Configure the platform commission percentage in `.env` using `PLATFORM_COMMISSION_RATE=15` (the default is 15%). A provider's net earning is its allocated gross amount minus the platform commission.
 
 ### Simulate a payment
 
@@ -137,7 +158,7 @@ Allowed transitions are `Requested` → `Approved` or `Rejected`, then `Approved
 
 ## 5. Discounts, payment notifications and admin dashboard
 
-Run `sql/discounts_notifications_dashboard.sql` after `sql/finance_tables.sql`, then run `sql/usage_refunds_audit.sql` so the notification types and financial audit log are available. The migration is safe to re-run on MySQL 8.
+Run `database/migrations/discounts_notifications_dashboard.sql` after `database/migrations/finance_tables.sql`, then run `database/migrations/usage_refunds_audit.sql` so the notification types and financial audit log are available. The migration is safe to re-run on MySQL 8.
 
 ### Admin discount-code management
 
@@ -177,7 +198,7 @@ These endpoints are protected by role-based access control. Money movement is si
 
 ### Roles and who can call what
 
-`middleware/access.js` provides `authenticate` and `requireRole(...)`. After login, `req.user` must be `{ id, role }` with role `Customer`, `Provider` or `Admin`. To use Developer 1's middleware set `DEVELOPER1_AUTH_PATH` (and `DEVELOPER1_AUTH_EXPORT` if their file exports an object) in `.env`; field names such as `userId`/`user_id` and `roles[0]` are normalised. For local testing without it, set `DEV_AUTH=true` and send `x-user-id` and `x-user-role` headers. With neither configured, every protected route answers 401.
+`backend/middleware/access.js` provides `authenticate` and `requireRole(...)`. After login, `req.user` must be `{ id, role }` with role `Customer`, `Provider` or `Admin`. To use Developer 1's middleware set `DEVELOPER1_AUTH_PATH` (and `DEVELOPER1_AUTH_EXPORT` if their file exports an object) in `.env`; field names such as `userId`/`user_id` and `roles[0]` are normalised. For local testing without it, set `DEV_AUTH=true` and send `x-user-id` and `x-user-role` headers. With neither configured, every protected route answers 401.
 
 | Area | Who |
 | --- | --- |
@@ -210,7 +231,7 @@ Customer and provider ids always come from the login, never from the request bod
 - Other resources (`resource_usage_periods`, such as storage volumes) are billed while they exist.
 - The period must be over to create a real invoice; `dry_run: true` previews usage so far without saving.
 - Each invoice line stores its `provider_id`, so `POST /api/finance/payments` can be called with only `invoice_id` and the payment is split between providers automatically (discounts shared proportionally).
-- `vm_usage` and `resource_usage_periods` are created by `sql/usage_refunds_audit.sql` only if they do not exist. If Developer 1 uses other column names, adapt the two SELECTs in `services/usageBillingService.js`.
+- `vm_usage` and `resource_usage_periods` are created by `database/migrations/usage_refunds_audit.sql` only if they do not exist. If Developer 1 uses other column names, adapt the two SELECTs in `backend/services/usageBillingService.js`.
 
 ### Audit log
 
@@ -218,11 +239,11 @@ Customer and provider ids always come from the login, never from the request bod
 
 ### Code layout
 
-Business rules live in `services/` (`financeService`, `billingService`, `usageBillingService`, `discountService`, `audit`); route files only validate input and call them, so admin and role-specific routes share one implementation.
+Business rules live in `backend/services/` (`financeService`, `billingService`, `usageBillingService`, `discountService`, `audit`); route files only validate input and call them, so admin and role-specific routes share one implementation.
 
 ## SQL compatibility and duplicate-table checks
 
-Before applying SQL to a database that already contains Developer 1's core schema, run `sql/check_shared_schema.sql` to inspect existing tables and columns. This file is **read-only** and makes no changes.
+Before applying SQL to a database that already contains Developer 1's core schema, run `database/migrations/check_shared_schema.sql` to inspect existing tables and columns. This file is **read-only** and makes no changes.
 
 The PDF defines `VmUsage`, `ResourceUsagePeriods`, and `Notifications` as core marketplace tables. This backend currently creates `vm_usage`, `resource_usage_periods`, and a separate `payment_notifications` table. On case-insensitive MySQL installations, the first two names may refer to the *same* tables as Developer 1's, but with different columns. `CREATE TABLE IF NOT EXISTS` does not check column compatibility. Do not run the usage migration on a shared schema until the column mappings are confirmed.
 
@@ -238,10 +259,40 @@ Migration order: `pricing_tables.sql` → `billing_tables.sql` → `finance_tabl
 
 ## Swagger / interactive API testing
 
-1. Copy `.env.example` to `.env` and set your local MySQL credentials. Do not commit `.env`.
+1. Copy `backend/.env.example` to `backend/.env` and set your local MySQL credentials. Do not commit `.env`.
 2. Install dependencies: `npm install`
 3. Ensure the database and SQL schema files are applied, then start the API with `npm run dev` (or `npm start`).
 4. Open Swagger UI at `http://localhost:3000/api-docs`. The raw OpenAPI document is at `http://localhost:3000/api-docs.json`.
 
 Swagger documents the routes implemented in `routes/pricing.js`, `routes/billing.js`, and `routes/finance.js`, including request-body fields and query/path parameters. The payment and refund routes are simulated and do not transfer real money.
 
+
+
+## Existing frontend notes
+
+# CortexOps Financial Frontend
+
+This frontend is integrated into the existing Express financial backend, using static HTML/CSS/JavaScript (no new packages required). It follows the CortexOps shared design direction with a sidebar, light panels, role-specific navigation, tables and action forms.
+
+## Run
+
+1. `npm install`
+2. Copy `.env.example` to `.env`, configure MySQL and set `DEV_AUTH=true` for **local development only**.
+3. Run the project SQL scripts against your test MySQL database, as documented in README.md.
+4. `npm start` and visit `http://localhost:3000`.
+5. Open **Settings** to select Admin/Customer/Provider and a real test user ID.
+
+## Included
+
+- Admin overview, pricing, invoices, payments, refunds, earnings, withdrawals, discount codes, notifications, settings.
+- Customer overview, pricing, own invoices/payments/refunds and notifications.
+- Provider overview, pricing, own earnings/withdrawals and notifications.
+- API-backed forms and tables, request errors and responsive layout.
+
+## Integration limitations
+
+- This is the **Developer 2 financial frontend**, not the complete 11-resource marketplace frontend.
+- Authentication pages from the design PDF are **not implemented** because Developer 1 owns real authentication. Settings only supply development headers, not real login. Never enable DEV_AUTH in production.
+- All values come from the existing APIs; no fake sample transactions. Empty tables are normal until MySQL has data.
+- The frontend has not been validated end-to-end against a running MySQL database here. Some form payloads may require adjustments to match backend validation; consult Swagger at `/api-docs`.
+- The PDF is a proposed shared design system, not proof that any backend endpoint exists.

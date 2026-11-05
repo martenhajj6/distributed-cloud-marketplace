@@ -1,5 +1,5 @@
 const crypto = require("crypto");
-const { HttpError, money } = require("./util");
+const { HttpError, money } = require("../utils/util");
 const discounts = require("./discountService");
 
 // Look up the current unit price for each item. items: [{ resource_type, cloud_class, quantity, provider_id? }]

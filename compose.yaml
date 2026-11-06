@@ -1,6 +1,8 @@
 
 services:
   backend:
+    env_file:
+      - ./backend/.env
     build:
       context: .
       dockerfile: Dockerfile
@@ -15,7 +17,7 @@ services:
       DB_HOST: "db"
       DB_PORT: "3306"
       DB_USER: "marketplace_app"
-      DB_PASSWORD: "${DB_PASSWORD:?DB_PASSWORD missing in .env}"
+      DB_PASSWORD: "${DB_PASSWORD}"
       DB_NAME: "DistributedCloudMarketplace"
 
     depends_on:

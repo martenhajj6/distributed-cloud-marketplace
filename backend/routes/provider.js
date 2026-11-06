@@ -1,23 +1,15 @@
-
 const express = require("express");
-const { sendError, money } = require("../utils/util");
-const finance = require("../services/financeService");
+const { handle } = require("../utils/helpers");
+const earnings = require("../services/earningsService");
+const withdrawal = require("../services/withdrawalService");
 
 const router = express.Router();
-
-const handle = (fn, message) => async (req, res) => {
-    try {
-        await fn(req, res);
-    } catch (error) {
-        sendError(res, error, message);
-    }
-};
 
 // Provider earnings
 router.get("/earnings", handle(async (req, res) => {
     const [summary, lines] = await Promise.all([
-        finance.getEarningsForProvider(req.user.id),
-        finance.listEarningLines(req.user.id)
+        earnings.getEarningsForProvider(req.user.id),
+        earnings.listEarningLines(req.user.id)
     ]);
 
     res.json({ ...summary, lines });
@@ -25,22 +17,15 @@ router.get("/earnings", handle(async (req, res) => {
 
 // Provider withdrawals
 router.get("/withdrawals", handle(async (req, res) => {
-    res.json(await finance.listWithdrawals(req.user.id));
+    res.json(await withdrawal.listWithdrawals(req.user.id));
 }, "Could not load your withdrawals."));
 
-// Request withdrawal
+// Request withdrawal (amount/note validation lives in the service)
 router.post("/withdrawals", handle(async (req, res) => {
-    const amount = money(req.body.amount);
-    const note = req.body.note == null
-        ? null : String(req.body.note).trim().slice(0, 255);
-
-    if (!Number.isFinite(Number(req.body.amount)) || amount <= 0)
-        return res.status(400).json({ error: "Provide a positive withdrawal amount." });
-
-    res.status(201).json(await finance.createWithdrawal({
+    res.status(201).json(await withdrawal.createWithdrawal({
         providerId: req.user.id,
-        amount,
-        note
+        amount: req.body.amount,
+        note: req.body.note
     }));
 }, "Could not create withdrawal request."));
 

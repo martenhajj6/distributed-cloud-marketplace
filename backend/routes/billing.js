@@ -1,27 +1,16 @@
-
 const express = require("express");
 const db = require("../dbconn");
-const { sendError, isDate, positiveInteger, logAudit } = require("../utils/util");
+const { HttpError, isDate, positiveInteger, logAudit } = require("../utils/util");
+const { handle, bad, optionalId } = require("../utils/helpers");
+const { RESOURCE_TYPES, CLOUD_CLASSES } = require("../utils/constants");
 const { withTransaction } = require("../utils/tx");
 const discounts = require("../services/discountService");
-const billing = require("../services/billingService");
+const billing = require("../services/invoiceService");
 const usageBilling = require("../services/usageBillingService");
 
 const router = express.Router();
-const types = ["CPU", "RAM", "Storage", "GPU"];
-const classes = ["Economy", "Business", "Critical"];
 
-function validPeriod(start, end) {
-    return isDate(start) && isDate(end) && end > start;
-}
-
-const handle = (fn, message) => async (req, res) => {
-    try {
-        await fn(req, res);
-    } catch (error) {
-        sendError(res, error, message);
-    }
-};
+const validPeriod = (start, end) => isDate(start) && isDate(end) && end > start;
 
 // Create simulated invoice
 router.post("/invoices", handle(async (req, res) => {
@@ -29,18 +18,14 @@ router.post("/invoices", handle(async (req, res) => {
     const customerId = positiveInteger(customer_id);
 
     if (!customerId || !validPeriod(start, end) || !Array.isArray(resources) || !resources.length)
-        return res.status(400).json({ error: "Invalid customer, period, or resources." });
+        throw bad("Invalid customer, period, or resources.");
 
-    const items = resources.map(item => ({
-        resource_type: item.resource_type,
-        cloud_class: item.cloud_class,
-        quantity: Number(item.quantity)
-    }));
+    // Quantities are validated by priceItems
+    const items = resources.map(({ resource_type, cloud_class, quantity }) =>
+        ({ resource_type, cloud_class, quantity: Number(quantity) }));
 
-    if (items.some(item => !types.includes(item.resource_type) ||
-        !classes.includes(item.cloud_class) ||
-        !Number.isFinite(item.quantity) || item.quantity <= 0))
-        return res.status(400).json({ error: "Invalid resource type, class, or quantity." });
+    if (items.some(i => !RESOURCE_TYPES.includes(i.resource_type) || !CLOUD_CLASSES.includes(i.cloud_class)))
+        throw bad("Invalid resource type or class.");
 
     const invoice = await withTransaction(connection =>
         billing.createInvoiceRecord(connection, {
@@ -60,8 +45,7 @@ router.post("/usage-invoices", handle(async (req, res) => {
     const { customer_id, billing_period_start: start, billing_period_end: end, dry_run } = req.body;
     const customerId = positiveInteger(customer_id);
 
-    if (!customerId || !validPeriod(start, end))
-        return res.status(400).json({ error: "Invalid customer or billing period." });
+    if (!customerId || !validPeriod(start, end)) throw bad("Invalid customer or billing period.");
 
     const input = {
         customerId,
@@ -70,8 +54,7 @@ router.post("/usage-invoices", handle(async (req, res) => {
         discountCode: discounts.normalizeCode(req.body.discount_code)
     };
 
-    if (dry_run === true)
-        return res.json(await usageBilling.previewUsageInvoice(db, input));
+    if (dry_run === true) return res.json(await usageBilling.previewUsageInvoice(db, input));
 
     const invoice = await withTransaction(async connection => {
         const created = await usageBilling.generateUsageInvoice(connection, input);
@@ -91,26 +74,16 @@ router.post("/usage-invoices", handle(async (req, res) => {
 
 // List invoices
 router.get("/invoices", handle(async (req, res) => {
-    const customerId = req.query.customer_id === undefined
-        ? null : positiveInteger(req.query.customer_id);
-
-    if (req.query.customer_id !== undefined && !customerId)
-        return res.status(400).json({ error: "Invalid customer ID." });
-
-    res.json(await billing.listInvoices(db, customerId));
+    res.json(await billing.listInvoices(db, optionalId(req.query.customer_id, "customer_id")));
 }, "Could not load invoices."));
 
 // Get invoice details
 router.get("/invoices/:id", handle(async (req, res) => {
     const id = positiveInteger(req.params.id);
-
-    if (!id)
-        return res.status(400).json({ error: "Invalid invoice ID." });
+    if (!id) throw bad("Invalid invoice ID.");
 
     const invoice = await billing.getInvoice(db, id);
-
-    if (!invoice)
-        return res.status(404).json({ error: "Invoice not found." });
+    if (!invoice) throw new HttpError(404, { error: "Invoice not found." });
 
     res.json(invoice);
 }, "Could not load invoice details."));

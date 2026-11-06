@@ -1,7 +1,7 @@
 
 const { HttpError, money } = require("../utils/util");
 const discounts = require("./discountService");
-const { priceItems, createInvoiceRecord } = require("./billingService");
+const { priceItems, createInvoiceRecord } = require("./invoiceService");
 
 const HOURS_PER_MONTH = Number(process.env.BILLING_HOURS_PER_MONTH) || 720;
 const round4 = value => Math.round((value + Number.EPSILON) * 10000) / 10000;
@@ -98,13 +98,11 @@ async function previewUsageInvoice(db, { customerId, periodStart, periodEnd, dis
     let discountInfo = null;
 
     if (discountCode) {
-        const discount = await discounts.findByCode(db, discountCode);
-        const reason = discount ? discounts.unusableReason(discount) : "invalid";
+        const { discount, reason } = await discounts.checkDiscount(db, discountCode);
 
         discountInfo = { code: discountCode, usable: reason === null, reason };
 
-        if (!reason)
-            discountAmount = discounts.calculateDiscount(discount, subtotal);
+        if (!reason) discountAmount = discounts.calculateDiscount(discount, subtotal);
     }
 
     return {
@@ -118,10 +116,7 @@ async function previewUsageInvoice(db, { customerId, periodStart, periodEnd, dis
         discount_amount: discountAmount,
         total: Math.max(0, money(subtotal - discountAmount)),
         currency: "USD",
-        items: priced.map((item, i) => ({
-            ...item,
-            unit_hours: built.items[i].unit_hours
-        }))
+        items: priced
     };
 }
 
@@ -140,25 +135,13 @@ async function generateUsageInvoice(db, { customerId, periodStart, periodEnd, di
             error: "No billable usage found for this period."
         });
 
-    const invoice = await createInvoiceRecord(db, {
+    return createInvoiceRecord(db, {
         customerId,
         periodStart,
         periodEnd,
         discountCode,
-        items: built.items.map(({ unit_hours, ...item }) => item)
+        items: built.items
     });
-
-    const hours = new Map(built.items.map(item => [
-        `${item.provider_id}|${item.resource_type}|${item.cloud_class}`,
-        item.unit_hours
-    ]));
-
-    invoice.items = invoice.items.map(item => ({
-        ...item,
-        unit_hours: hours.get(`${item.provider_id}|${item.resource_type}|${item.cloud_class}`)
-    }));
-
-    return invoice;
 }
 
 module.exports = {

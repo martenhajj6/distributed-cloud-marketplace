@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title><%= title %> | CortexOps</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body data-page="<%= page %>">
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <span class="brandmark">◈</span> CortexOps
+      <small>FINANCIAL CONSOLE</small>
+    </div>
+
+    <div class="section-label">WORKSPACE</div>
+
+    <nav id="nav">
+      <% for (const item of menu) { %>
+        <a data-roles="<%= item.roles %>" class="<%= page === item.id ? 'active' : '' %>" href="/<%= item.id %>">
+          <span class="navicon"><%= item.icon %></span><%= item.label %>
+        </a>
+      <% } %>
+    </nav>
+
+    <div class="sidebar-bottom">
+      <div class="avatar">CO</div>
+      <div>
+        <b>Cloud Marketplace</b>
+        <small>Simulated platform</small>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="top">
+      <div class="crumb">
+        CortexOps <span>/</span> <strong><%= title %></strong>
+      </div>
+
+      <div class="top-actions">
+        <span class="env">● Development environment</span>
+
+        <div class="notification-area" id="notificationArea">
+          <button type="button" class="iconbtn notification-bell" id="notificationToggle"
+                  title="Notifications" aria-label="Notifications" aria-expanded="false">
+            🔔<span class="notification-count" id="notificationCount" hidden></span>
+          </button>
+
+          <div class="notification-popover" id="notificationPopover" hidden>
+            <div class="notification-title">Notifications</div>
+            <div class="notification-items" id="notificationItems">Open the bell to load alerts.</div>
+          </div>
+        </div>
+
+        <button class="iconbtn" id="reload" title="Refresh">↻</button>
+        <div class="avatar small">CO</div>
+      </div>
+    </header>
+
+    <div class="content">
+      <div class="heading">
+        <div>
+          <div class="eyebrow" id="eyebrow">FINANCIAL OPERATIONS</div>
+          <h1><%= title %></h1>
+          <p><%= subtitle %></p>
+        </div>
+        <div id="headingAction"></div>
+      </div>
+
+      <div class="notice" id="notice" hidden></div>

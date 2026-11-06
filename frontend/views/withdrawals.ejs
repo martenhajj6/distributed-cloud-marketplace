@@ -1,0 +1,17 @@
+<%- include("partials/header") %>
+
+<section class="panel">
+  <div class="panelhead">
+    <div>
+      <h3>Withdrawal requests</h3>
+      <p id="withdrawalRows-description">Requests and their statuses</p>
+    </div>
+  </div>
+
+  <%- include('partials/table', {
+    tableId: 'withdrawalRows',
+    columns: ["ID", "Provider", "Amount", "Status", "Actions"]
+  }) %>
+</section>
+
+<%- include("partials/footer") %>

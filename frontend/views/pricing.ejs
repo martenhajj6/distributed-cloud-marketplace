@@ -1,0 +1,19 @@
+<%- include("partials/header") %>
+
+<section class="panel">
+  <div class="panelhead">
+    <div>
+      <h3>Pricing catalog</h3>
+      <p id="pricingRows-description">Resource rates</p>
+    </div>
+  </div>
+
+  <%- include('partials/table', {
+    tableId: 'pricingRows',
+    columns: ["ID", "Resource", "Class", "Unit price", "Actions"]
+  }) %>
+</section>
+
+<section id="priceHistory"></section>
+
+<%- include("partials/footer") %>

@@ -1,0 +1,19 @@
+<%- include("partials/header") %>
+
+<div class="cards" id="earningsCards"></div>
+
+<section class="panel">
+  <div class="panelhead">
+    <div>
+      <h3>Earnings detail</h3>
+      <p id="earningsRows-description">Provider earning allocations</p>
+    </div>
+  </div>
+
+  <%- include('partials/table', {
+    tableId: 'earningsRows',
+    columns: ["Provider", "Payment", "Gross", "Commission", "Net"]
+  }) %>
+</section>
+
+<%- include("partials/footer") %>

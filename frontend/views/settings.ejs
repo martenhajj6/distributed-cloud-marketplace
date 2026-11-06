@@ -1,0 +1,28 @@
+<%- include("partials/header") %>
+
+<section class="panel settings">
+  <h2>Development API identity</h2>
+  <p>This project does not yet include Developer 1's login. For local testing only, choose a role and an existing user ID. API requests use DEV_AUTH headers. This is not a real login.</p>
+
+  <form id="settingsForm">
+    <div class="field">
+      <label for="role">Role</label>
+      <select name="role" id="role">
+        <option>Admin</option>
+        <option>Customer</option>
+        <option>Provider</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="userId">User ID</label>
+      <input type="number" min="1" id="userId" name="id" required>
+    </div>
+
+    <button class="btn primary">Apply identity</button>
+  </form>
+
+  <p class="subtle" style="margin-top:25px">Use DEV_AUTH=true only for development. Production must use real authentication.</p>
+</section>
+
+<%- include("partials/footer") %>

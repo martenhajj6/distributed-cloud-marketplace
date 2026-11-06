@@ -1,0 +1,17 @@
+<%- include("partials/header") %>
+
+<section class="panel">
+  <div class="panelhead">
+    <div>
+      <h3>Refund requests</h3>
+      <p id="refundRows-description">Refund decisions and statuses</p>
+    </div>
+  </div>
+
+  <%- include('partials/table', {
+    tableId: 'refundRows',
+    columns: ["ID", "Payment", "Amount", "Status", "Actions"]
+  }) %>
+</section>
+
+<%- include("partials/footer") %>

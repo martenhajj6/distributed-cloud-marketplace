@@ -1,11 +1,61 @@
+# Distributed Cloud Marketplace - Beginner-friendly organization
+
+The database is connected with **`backend/dbconn.js`**, just like the class exercise.
+It uses **Express + mysql2 + EJS**, and the API endpoints remain unchanged.
+
+## Understand the folders
+
+- `frontend/views/`: EJS pages (HTML with small EJS expressions).
+- `frontend/css/`: styles.
+- `frontend/js/`: browser scripts (API calls and form handling).
+- `backend/server.js`: starts Express, loads EJS pages and API routes.
+- `backend/dbconn.js`: creates and exports the MySQL connection pool.
+- `backend/routes/`: API URLs and request handling.
+- `backend/services/`: SQL and business rules for billing, payments, refunds, and earnings.
+- `backend/utils/tx.js`: protects multi-step financial updates with commit/rollback.
+- `database/`: MySQL scripts.
+
+## Start on Windows
+
+```powershell
+cd backend
+npm install
+Copy-Item .env.example .env  # only if .env does not already exist
+npm start
+```
+
+Edit `backend/.env` to match your local MySQL user, password, and database.
+Then open `http://localhost:3000`.
+
+**Important:** Never commit your `.env` or your database password.
+This is not yet a merged version of your teammate's core marketplace.
+
+---
+
+# Multi-page EJS frontend
+
+The frontend now has **one EJS template per screen** under `frontend/views/` and one small JavaScript file per screen under `frontend/js/pages/`. Shared helpers are in `frontend/js/common.js` and `frontend/js/forms.js`. CSS is split into `style.css` (base theme) and `pages.css` (page-specific layout).
+
+Run from `backend/`:
+
+```powershell
+npm install  # also generates package-lock.json
+Copy-Item .env.example .env   # only if you do not already have .env
+npm start
+```
+
+Open **http://localhost:3000/overview** (the root URL redirects there). Set `DEV_AUTH=true` in your local `.env` to use the Settings role selector during testing. This is not a production login. All financial APIs and SQL scripts have been preserved. The old package-lock.json was removed because EJS was added and the npm registry was unavailable during conversion. Running npm install creates a current lockfile; commit that new lockfile. This conversion has passed JavaScript syntax checks, but it still needs browser and database/API testing.
+
+## Existing project instructions
+
 # Distributed Cloud Marketplace — Financial Module
 
 ## Project structure (three tiers)
 
 - `frontend/` — HTML interface (`index.html`), `css/`, `js/`, and reserved `views/` for future EJS pages.
-- `backend/` — Express API, `routes/`, `services/`, `middleware/`, `config/db.js`, and `utils/`.
+- `backend/` — Express API, `routes/`, `services/`, `middleware/`, `dbconn.js`, and `utils/`.
 - `database/` — `schema.sql` (combined finance schema), `seed.sql` (optional test data), and original scripts under `migrations/`.
-- `backend/controllers/` is reserved for future controller extraction; existing route handlers were not rewritten.
+- Existing route handlers stay in `backend/routes/`; controllers were not added because they are unnecessary for this version.
 
 ### Quick start — local Windows / VS Code
 
@@ -296,3 +346,14 @@ This frontend is integrated into the existing Express financial backend, using s
 - All values come from the existing APIs; no fake sample transactions. Empty tables are normal until MySQL has data.
 - The frontend has not been validated end-to-end against a running MySQL database here. Some form payloads may require adjustments to match backend validation; consult Swagger at `/api-docs`.
 - The PDF is a proposed shared design system, not proof that any backend endpoint exists.
+
+## Beginner-friendly code organization
+
+- `backend/dbconn.js`: MySQL2 Promise pool (same purpose as the class `dbconn.js`).
+- `backend/routes/`: Express endpoints. `backend/services/`: reusable finance logic.
+- `frontend/views/`: EJS pages. `frontend/js/pages.js`: page-specific actions.
+- `frontend/js/notifications.js`: notification bell dropdown; notifications are **not** a page.
+- `frontend/css/style.css`: shared styling.
+
+To run locally: `cd backend`, `npm install`, configure `.env`, then `npm start`.
+The database schema must already exist in MySQL. No real payments are processed.

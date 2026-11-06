@@ -1,0 +1,17 @@
+<%- include("partials/header") %>
+
+<section class="panel">
+  <div class="panelhead">
+    <div>
+      <h3>Invoice register</h3>
+      <p id="invoiceRows-description">Billing periods and invoice history</p>
+    </div>
+  </div>
+
+  <%- include('partials/table', {
+    tableId: 'invoiceRows',
+    columns: ["Invoice", "Customer", "Total", "Status", "Created"]
+  }) %>
+</section>
+
+<%- include("partials/footer") %>

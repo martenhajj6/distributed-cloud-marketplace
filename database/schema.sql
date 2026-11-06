@@ -1,12 +1,19 @@
--- Financial module database schema (compiled from the original migration scripts).
--- Run against a development database or coordinate with Developer 1 first.
--- Does NOT include the teammate's core marketplace schema.
+-- CLOUD MARKETPLACE: COMPLETE FINANCIAL MODULE RESET + DEMO DATA
+-- MySQL 8.0+ / MySQL Workbench. Development/testing ONLY.
+-- WARNING: This deletes the ENTIRE cloud_marketplace database, including
+--          any teammate-created users, resources and other core tables.
+-- This script only recreates YOUR financial module tables, not Developer 1's schema.
+-- Customer IDs 1/2 and provider IDs 10/11 are DEMO REFERENCES only.
+-- Prices and payments are simulated, never real transactions.
 
-
--- ===== pricing_tables.sql =====
-CREATE DATABASE IF NOT EXISTS cloud_marketplace;
+DROP DATABASE IF EXISTS cloud_marketplace;
+CREATE DATABASE cloud_marketplace CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE cloud_marketplace;
 
+-- 1) CREATE ALL 15 FINANCIAL TABLES
+
+
+-- pricing_rules
 CREATE TABLE IF NOT EXISTS pricing_rules (
     id INT AUTO_INCREMENT PRIMARY KEY,
     resource_type ENUM('CPU', 'RAM', 'Storage', 'GPU') NOT NULL,
@@ -17,6 +24,8 @@ CREATE TABLE IF NOT EXISTS pricing_rules (
     CHECK (unit_price >= 0)
 );
 
+
+-- pricing_history
 CREATE TABLE IF NOT EXISTS pricing_history (
     id INT AUTO_INCREMENT PRIMARY KEY,
     pricing_rule_id INT NOT NULL,
@@ -30,36 +39,25 @@ CREATE TABLE IF NOT EXISTS pricing_history (
     CHECK (new_price >= 0)
 );
 
--- Example starting prices. These are sample values for development;
--- confirm the final prices with your teammate/project requirements.
-INSERT IGNORE INTO pricing_rules (resource_type, cloud_class, unit_price) VALUES
-('CPU', 'Economy', 2.00),
-('CPU', 'Business', 3.00),
-('CPU', 'Critical', 5.00),
-('RAM', 'Economy', 1.00),
-('RAM', 'Business', 1.50),
-('RAM', 'Critical', 2.50),
-('Storage', 'Economy', 0.03),
-('Storage', 'Business', 0.06),
-('Storage', 'Critical', 0.10),
-('GPU', 'Economy', 4.00),
-('GPU', 'Business', 6.00),
-('GPU', 'Critical', 10.00);
 
--- Record initial prices in history only for rows that have no history yet.
-INSERT INTO pricing_history (pricing_rule_id, old_price, new_price)
-SELECT p.id, p.unit_price, p.unit_price
-FROM pricing_rules p
-WHERE NOT EXISTS (
-    SELECT 1 FROM pricing_history h WHERE h.pricing_rule_id = p.id
+-- discount_codes
+CREATE TABLE IF NOT EXISTS discount_codes (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    code VARCHAR(40) NOT NULL UNIQUE,
+    discount_type ENUM('Percentage', 'Fixed') NOT NULL,
+    discount_value DECIMAL(10,2) NOT NULL,
+    max_uses INT NULL,
+    used_count INT NOT NULL DEFAULT 0,
+    expires_at DATETIME NULL,
+    active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CHECK (discount_value > 0),
+    CHECK (max_uses IS NULL OR max_uses > 0),
+    CHECK (used_count >= 0)
 );
 
 
--- ===== billing_tables.sql =====
--- Task 3: billing periods and simulated invoices.
--- Uses the existing cloud_marketplace database; do not create a second database.
-USE cloud_marketplace;
-
+-- billing_periods
 CREATE TABLE IF NOT EXISTS billing_periods (
     id INT AUTO_INCREMENT PRIMARY KEY,
     customer_id INT NOT NULL,
@@ -70,6 +68,8 @@ CREATE TABLE IF NOT EXISTS billing_periods (
     CHECK (period_end > period_start)
 );
 
+
+-- invoices
 CREATE TABLE IF NOT EXISTS invoices (
     id INT AUTO_INCREMENT PRIMARY KEY,
     invoice_number VARCHAR(60) NOT NULL UNIQUE,
@@ -77,7 +77,10 @@ CREATE TABLE IF NOT EXISTS invoices (
     status ENUM('Unpaid', 'Paid', 'Cancelled') NOT NULL DEFAULT 'Unpaid',
     subtotal DECIMAL(12,2) NOT NULL DEFAULT 0,
     total DECIMAL(12,2) NOT NULL DEFAULT 0,
+    discount_code_id INT NULL,
+    discount_amount DECIMAL(12,2) NOT NULL DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_invoice_discount_code FOREIGN KEY (discount_code_id) REFERENCES discount_codes(id) ON DELETE SET NULL,
     CONSTRAINT fk_invoice_billing_period
       FOREIGN KEY (billing_period_id) REFERENCES billing_periods(id)
       ON DELETE RESTRICT,
@@ -85,12 +88,15 @@ CREATE TABLE IF NOT EXISTS invoices (
     CHECK (total >= 0)
 );
 
+
+-- invoice_items
 CREATE TABLE IF NOT EXISTS invoice_items (
     id INT AUTO_INCREMENT PRIMARY KEY,
     invoice_id INT NOT NULL,
+    provider_id INT NULL,
     resource_type ENUM('CPU', 'RAM', 'Storage', 'GPU') NOT NULL,
     cloud_class ENUM('Economy', 'Business', 'Critical') NOT NULL,
-    quantity DECIMAL(12,2) NOT NULL,
+    quantity DECIMAL(14,4) NOT NULL,
     unit_price DECIMAL(10,2) NOT NULL,
     line_total DECIMAL(12,2) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -103,11 +109,7 @@ CREATE TABLE IF NOT EXISTS invoice_items (
 );
 
 
--- ===== finance_tables.sql =====
--- Task 4: simulated payments, refunds, provider earnings, commissions and withdrawals.
--- Run after sql/02_create_billing_tables.sql in the existing cloud_marketplace database.
-USE cloud_marketplace;
-
+-- payments
 CREATE TABLE IF NOT EXISTS payments (
     id INT AUTO_INCREMENT PRIMARY KEY,
     payment_reference VARCHAR(80) NOT NULL UNIQUE,
@@ -120,6 +122,8 @@ CREATE TABLE IF NOT EXISTS payments (
     CHECK (amount > 0)
 );
 
+
+-- refunds
 CREATE TABLE IF NOT EXISTS refunds (
     id INT AUTO_INCREMENT PRIMARY KEY,
     refund_reference VARCHAR(80) NOT NULL UNIQUE,
@@ -133,6 +137,8 @@ CREATE TABLE IF NOT EXISTS refunds (
     CHECK (amount > 0)
 );
 
+
+-- provider_earnings
 CREATE TABLE IF NOT EXISTS provider_earnings (
     id INT AUTO_INCREMENT PRIMARY KEY,
     payment_id INT NOT NULL,
@@ -151,6 +157,8 @@ CREATE TABLE IF NOT EXISTS provider_earnings (
     CHECK (net_amount >= 0)
 );
 
+
+-- withdrawal_requests
 CREATE TABLE IF NOT EXISTS withdrawal_requests (
     id INT AUTO_INCREMENT PRIMARY KEY,
     provider_id INT NOT NULL,
@@ -164,65 +172,12 @@ CREATE TABLE IF NOT EXISTS withdrawal_requests (
 );
 
 
--- ===== discounts_notifications_dashboard.sql =====
--- Task 5: discount codes, payment notifications and admin dashboard support.
--- Run after sql/finance_tables.sql in the existing cloud_marketplace database.
-USE cloud_marketplace;
-
-CREATE TABLE IF NOT EXISTS discount_codes (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    code VARCHAR(40) NOT NULL UNIQUE,
-    discount_type ENUM('Percentage', 'Fixed') NOT NULL,
-    discount_value DECIMAL(10,2) NOT NULL,
-    max_uses INT NULL,
-    used_count INT NOT NULL DEFAULT 0,
-    expires_at DATETIME NULL,
-    active BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CHECK (discount_value > 0),
-    CHECK (max_uses IS NULL OR max_uses > 0),
-    CHECK (used_count >= 0)
-);
-
--- Add invoice discount columns only when missing (safe to rerun on MySQL 8).
-SET @col_discount_code = (
-    SELECT COUNT(*) FROM information_schema.COLUMNS
-    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'invoices' AND COLUMN_NAME = 'discount_code_id'
-);
-SET @sql = IF(@col_discount_code = 0,
-    'ALTER TABLE invoices ADD COLUMN discount_code_id INT NULL', 'SELECT 1');
-PREPARE stmt FROM @sql;
-EXECUTE stmt;
-DEALLOCATE PREPARE stmt;
-
-SET @col_discount_amount = (
-    SELECT COUNT(*) FROM information_schema.COLUMNS
-    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'invoices' AND COLUMN_NAME = 'discount_amount'
-);
-SET @sql = IF(@col_discount_amount = 0,
-    'ALTER TABLE invoices ADD COLUMN discount_amount DECIMAL(12,2) NOT NULL DEFAULT 0', 'SELECT 1');
-PREPARE stmt FROM @sql;
-EXECUTE stmt;
-DEALLOCATE PREPARE stmt;
-
--- Add the FK only if it has not already been added (safe to rerun on MySQL 8).
-SET @fk_exists = (
-    SELECT COUNT(*) FROM information_schema.REFERENTIAL_CONSTRAINTS
-    WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME = 'invoices'
-      AND CONSTRAINT_NAME = 'fk_invoice_discount_code'
-);
-SET @sql = IF(@fk_exists = 0,
-    'ALTER TABLE invoices ADD CONSTRAINT fk_invoice_discount_code FOREIGN KEY (discount_code_id) REFERENCES discount_codes(id) ON DELETE SET NULL',
-    'SELECT 1');
-PREPARE stmt FROM @sql;
-EXECUTE stmt;
-DEALLOCATE PREPARE stmt;
-
+-- payment_notifications
 CREATE TABLE IF NOT EXISTS payment_notifications (
     id INT AUTO_INCREMENT PRIMARY KEY,
     recipient_type ENUM('Customer', 'Provider') NOT NULL,
     recipient_id INT NOT NULL,
-    notification_type ENUM('PaymentSucceeded', 'RefundSucceeded') NOT NULL,
+    notification_type ENUM('PaymentSucceeded', 'RefundSucceeded', 'RefundRequested', 'RefundRejected') NOT NULL,
     title VARCHAR(120) NOT NULL,
     message VARCHAR(500) NOT NULL,
     payment_id INT NULL,
@@ -235,22 +190,7 @@ CREATE TABLE IF NOT EXISTS payment_notifications (
 );
 
 
--- ===== usage_refunds_audit.sql =====
--- Task 6: usage-based billing, customer refund requests, notification types and financial audit log.
--- Run AFTER sql/discounts_notifications_dashboard.sql (file: discounts_notifications_dashboard.sql).
--- Safe to run more than once on MySQL 8.
-USE cloud_marketplace;
-
--- ---------------------------------------------------------------------------
--- Usage tables.
--- IMPORTANT: if Developer 1 already has tables for resource usage and VM usage, agree on ONE
--- schema with them. This script only creates these tables if they do not exist yet, using the
--- column names that services/usageBillingService.js reads. If their columns differ, change the
--- two SELECT queries in that file instead of keeping two copies of the data.
--- ---------------------------------------------------------------------------
-
--- A non-VM resource (for example a storage volume) that existed from started_at until ended_at.
--- ended_at NULL means "still exists". Billed for the whole time it exists.
+-- resource_usage_periods
 CREATE TABLE IF NOT EXISTS resource_usage_periods (
     id INT AUTO_INCREMENT PRIMARY KEY,
     customer_id INT NOT NULL,
@@ -267,8 +207,8 @@ CREATE TABLE IF NOT EXISTS resource_usage_periods (
     CHECK (ended_at IS NULL OR ended_at > started_at)
 );
 
--- One row per interval in which a VM was RUNNING. When a VM is stopped the row gets stopped_at,
--- and starting it again inserts a NEW row. Time with no row = stopped = not billed.
+
+-- vm_usage
 CREATE TABLE IF NOT EXISTS vm_usage (
     id INT AUTO_INCREMENT PRIMARY KEY,
     customer_id INT NOT NULL,
@@ -287,27 +227,8 @@ CREATE TABLE IF NOT EXISTS vm_usage (
     CHECK (stopped_at IS NULL OR stopped_at > started_at)
 );
 
--- Usage invoices need fractions of a unit-month (4 CPUs for 1 hour = 0.0056), so widen quantity.
-ALTER TABLE invoice_items MODIFY quantity DECIMAL(14,4) NOT NULL;
 
--- Which provider earned each invoice line (NULL for manual invoices). Used to split a payment
--- between providers automatically.
-SET @col_exists = (
-    SELECT COUNT(*) FROM information_schema.COLUMNS
-    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'invoice_items' AND COLUMN_NAME = 'provider_id'
-);
-SET @sql = IF(@col_exists = 0,
-    'ALTER TABLE invoice_items ADD COLUMN provider_id INT NULL AFTER invoice_id',
-    'SELECT 1');
-PREPARE stmt FROM @sql;
-EXECUTE stmt;
-DEALLOCATE PREPARE stmt;
-
--- ---------------------------------------------------------------------------
--- Customer refund requests (the customer asks, an admin approves or rejects).
--- An approved request creates a normal row in `refunds` through the same code as
--- POST /api/finance/refunds.
--- ---------------------------------------------------------------------------
+-- refund_requests
 CREATE TABLE IF NOT EXISTS refund_requests (
     id INT AUTO_INCREMENT PRIMARY KEY,
     payment_id INT NOT NULL,
@@ -328,14 +249,8 @@ CREATE TABLE IF NOT EXISTS refund_requests (
     CHECK (amount > 0)
 );
 
--- More notification types (re-running this statement is harmless).
-ALTER TABLE payment_notifications
-    MODIFY notification_type ENUM('PaymentSucceeded', 'RefundSucceeded', 'RefundRequested', 'RefundRejected') NOT NULL;
 
--- ---------------------------------------------------------------------------
--- Financial audit log (optional feature): pricing changes, refund decisions, withdrawal decisions,
--- discount changes and usage-invoice generation. Rows are only ever inserted.
--- ---------------------------------------------------------------------------
+-- financial_audit_log
 CREATE TABLE IF NOT EXISTS financial_audit_log (
     id INT AUTO_INCREMENT PRIMARY KEY,
     actor_id INT NULL,
@@ -349,3 +264,94 @@ CREATE TABLE IF NOT EXISTS financial_audit_log (
     INDEX idx_audit_created (created_at)
 );
 
+
+-- 2) PRICE LIST: 4 resources x 3 classes = 12 combinations
+INSERT INTO pricing_rules (id, resource_type, cloud_class, unit_price) VALUES
+(1,'CPU','Economy',2.00), (2,'CPU','Business',3.00), (3,'CPU','Critical',5.00),
+(4,'RAM','Economy',1.00), (5,'RAM','Business',1.50), (6,'RAM','Critical',2.50),
+(7,'Storage','Economy',0.03), (8,'Storage','Business',0.06), (9,'Storage','Critical',0.10),
+(10,'GPU','Economy',4.00), (11,'GPU','Business',6.00), (12,'GPU','Critical',10.00);
+
+-- One history row per initial rule, plus a historical change example.
+INSERT INTO pricing_history (pricing_rule_id, old_price, new_price, changed_at)
+SELECT id, unit_price, unit_price, '2026-08-01 09:00:00' FROM pricing_rules;
+INSERT INTO pricing_history (pricing_rule_id, old_price, new_price, changed_at)
+VALUES (2, 2.75, 3.00, '2026-08-15 10:00:00');
+
+-- 3) PROMOTIONS
+INSERT INTO discount_codes (id,code,discount_type,discount_value,max_uses,used_count,expires_at,active) VALUES
+(1,'WELCOME10','Percentage',10.00,100,1,'2027-12-31 23:59:59',TRUE),
+(2,'SAVE5','Fixed',5.00,50,0,'2027-12-31 23:59:59',TRUE);
+
+-- 4) REALISTIC SEPTEMBER USAGE (720-hour billing month)
+-- Customer 1's VM 1 ran 1-11 Sep and 20 Sep-1 Oct: 504 billable hours.
+-- Its stopped time (11-20 Sep) has no row and is not billed.
+INSERT INTO vm_usage (id,customer_id,provider_id,vm_id,cloud_class,cpu_cores,ram_gb,gpu_units,started_at,stopped_at) VALUES
+(1,1,10,101,'Business',4,8,0,'2026-09-01 00:00:00','2026-09-11 00:00:00'),
+(2,1,10,101,'Business',4,8,0,'2026-09-20 00:00:00','2026-10-01 00:00:00'),
+(3,1,11,102,'Economy',2,4,0,'2026-09-15 00:00:00','2026-09-30 00:00:00'),
+(4,1,10,103,'Business',8,16,0,'2026-08-01 00:00:00','2026-08-31 00:00:00'),
+(5,2,10,201,'Critical',1,2,0,'2026-09-01 00:00:00','2026-09-03 12:00:00');
+INSERT INTO resource_usage_periods (id,customer_id,provider_id,resource_id,resource_type,cloud_class,quantity,started_at,ended_at) VALUES
+(1,1,10,501,'Storage','Business',100,'2026-09-01 00:00:00','2026-10-01 00:00:00');
+
+-- 5) BILLING PERIODS AND INVOICES
+-- Customer 1: CPU $8.40 + RAM $8.40 + CPU $2 + RAM $2 + storage $6 = $26.80.
+-- Customer 2: CPU $0.42 + RAM $0.42 = $0.84, 10% discount $0.08 => $0.76.
+INSERT INTO billing_periods (id,customer_id,period_start,period_end) VALUES
+(1,1,'2026-09-01','2026-10-01'),
+(2,2,'2026-09-01','2026-10-01');
+INSERT INTO invoices (id,invoice_number,billing_period_id,status,subtotal,total,discount_code_id,discount_amount) VALUES
+(1,'INV-2026-09-0001',1,'Paid',26.80,26.80,NULL,0.00),
+(2,'INV-2026-09-0002',2,'Unpaid',0.84,0.76,1,0.08);
+INSERT INTO invoice_items (invoice_id,provider_id,resource_type,cloud_class,quantity,unit_price,line_total) VALUES
+(1,10,'CPU','Business',2.8000,3.00,8.40),
+(1,10,'RAM','Business',5.6000,1.50,8.40),
+(1,11,'CPU','Economy',1.0000,2.00,2.00),
+(1,11,'RAM','Economy',2.0000,1.00,2.00),
+(1,10,'Storage','Business',100.0000,0.06,6.00),
+(2,10,'CPU','Critical',0.0833,5.00,0.42),
+(2,10,'RAM','Critical',0.1667,2.50,0.42);
+
+-- 6) SIMULATED PAYMENT AND PARTIAL REFUND
+INSERT INTO payments (id,payment_reference,invoice_id,amount,status,simulated) VALUES
+(1,'PAY-DEMO-0001',1,26.80,'Succeeded',TRUE);
+INSERT INTO refunds (id,refund_reference,payment_id,amount,reason,status) VALUES
+(1,'REF-DEMO-0001',1,2.00,'Service interruption credit','Succeeded');
+
+-- 7) EARNINGS (10% PLATFORM COMMISSION)
+-- Earnings correspond to the original $26.80 payment, before the $2.00 refund.
+-- Real application refund handling may update balances in separate operations.
+INSERT INTO provider_earnings (payment_id,provider_id,gross_amount,commission_rate,commission_amount,net_amount) VALUES
+(1,10,22.80,10.00,2.28,20.52),
+(1,11,4.00,10.00,0.40,3.60);
+INSERT INTO withdrawal_requests (provider_id,amount,status,note) VALUES
+(10,8.00,'Requested','Demo payout request'),
+(11,2.00,'Approved','Demo payout awaiting settlement');
+
+-- 8) CUSTOMER REFUND APPROVAL (linked to the refund above)
+INSERT INTO refund_requests
+(payment_id,customer_id,amount,reason,status,admin_note,decided_by,decided_at,refund_id) VALUES
+(1,1,2.00,'Service interruption','Approved','Approved as a partial refund',99,'2026-10-05 12:00:00',1);
+
+-- 9) PAYMENT / REFUND NOTIFICATIONS
+INSERT INTO payment_notifications
+(recipient_type,recipient_id,notification_type,title,message,payment_id,refund_id,is_read) VALUES
+('Customer',1,'PaymentSucceeded','Payment successful','Your invoice INV-2026-09-0001 was paid.',1,NULL,TRUE),
+('Provider',10,'PaymentSucceeded','Earnings recorded','Your earnings from payment PAY-DEMO-0001 were recorded.',1,NULL,FALSE),
+('Provider',11,'PaymentSucceeded','Earnings recorded','Your earnings from payment PAY-DEMO-0001 were recorded.',1,NULL,FALSE),
+('Customer',1,'RefundRequested','Refund requested','Your partial refund request for $2.00 was submitted.',1,NULL,TRUE),
+('Customer',1,'RefundSucceeded','Refund completed','Your $2.00 partial refund was approved and processed.',1,1,FALSE);
+
+-- 10) AUDIT TRAIL
+INSERT INTO financial_audit_log (actor_id,actor_role,action,entity_type,entity_id,details) VALUES
+(99,'Admin','PRICE_UPDATED','pricing_rules',2,'Demo historical CPU Business price adjustment'),
+(1,'Customer','REFUND_REQUESTED','refund_requests',1,'Requested a $2.00 partial refund'),
+(99,'Admin','REFUND_APPROVED','refund_requests',1,'Approved refund REF-DEMO-0001'),
+(10,'Provider','WITHDRAWAL_REQUESTED','withdrawal_requests',1,'Requested $8.00 payout');
+
+-- 11) QUICK CHECKS
+SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() ORDER BY TABLE_NAME;
+SELECT id,invoice_number,status,subtotal,discount_amount,total FROM invoices ORDER BY id;
+SELECT id,payment_reference,amount,status FROM payments;
+SELECT provider_id,gross_amount,commission_amount,net_amount FROM provider_earnings ORDER BY provider_id;

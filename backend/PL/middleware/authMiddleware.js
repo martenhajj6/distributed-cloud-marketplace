@@ -1,5 +1,5 @@
 
-const db = require("../db");
+const { checkAuthorization } = require("../../BLL/auth/userService");
 
 // Check whether the user is logged in
 function requireAuth(req, res, next) {
@@ -26,29 +26,9 @@ function requireRole(...allowedRoles) {
         }
 
         try {
-            const [rows] = await db.execute(
-                `SELECT role, email_verified_at
-                 FROM Users WHERE user_id = ?`,
-                [user.userId]
-            );
-
-            if (!rows.length || !rows[0].email_verified_at) {
-                return res.status(401).json({
-                    message: "Account unavailable"
-                });
-            }
-
-            // Require a fresh login if the role changed
-            if (rows[0].role !== user.role) {
-                return res.status(401).json({
-                    message: "Please log in again"
-                });
-            }
-
-            if (!allowedRoles.includes(rows[0].role)) {
-                return res.status(403).json({
-                    message: "Access denied"
-                });
+            const failure = await checkAuthorization(user.userId, user.role, allowedRoles);
+            if (failure) {
+                return res.status(failure.status).json({ message: failure.message });
             }
 
             next();

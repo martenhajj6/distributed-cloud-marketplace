@@ -1,15 +1,12 @@
-
 FROM node:22-alpine
 
-WORKDIR /app/backend
+WORKDIR /app
 
-COPY backend/package.json backend/package-lock.json ./
-
+COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
-COPY backend/ ./
-
-COPY frontend/ /app/frontend/
+COPY server.js ./
+COPY backend/ ./backend/
+COPY frontend/ ./frontend/
 
 CMD ["npm", "start"]
-

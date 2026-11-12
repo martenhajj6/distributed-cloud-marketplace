@@ -1,5 +1,5 @@
 
-const db = require("./db");
+const dal = require("../../DAL/auth/twoFactorDAL");
 const { createTwoFactorSetup, verifyTwoFactorCode } = require("./twoFactorService");
 
 // Start Google Authenticator enrollment
@@ -8,18 +8,13 @@ async function startTwoFactorEnrollment(userId) {
         throw new Error("Invalid user ID");
     }
 
-    const connection = await db.getConnection();
+    const connection = await dal.getConnection();
 
     try {
-        await connection.beginTransaction();
+        await dal.beginTransaction(connection);
 
         // Lock and check the user's account
-        const [users] = await connection.execute(
-            `SELECT email, email_verified_at
-             FROM Users
-             WHERE user_id = ? FOR UPDATE`,
-            [userId]
-        );
+        const [users] = await dal.lockUserForEnrollment(connection, [userId]);
 
         if (users.length === 0)
             throw new Error("User not found");
@@ -28,12 +23,7 @@ async function startTwoFactorEnrollment(userId) {
             throw new Error("Verify your email first");
 
         // Check whether 2FA is already enabled
-        const [existing] = await connection.execute(
-            `SELECT enabled_at
-             FROM UserTwoFactor
-             WHERE user_id = ? FOR UPDATE`,
-            [userId]
-        );
+        const [existing] = await dal.lockEnrollmentStatus(connection, [userId]);
 
         if (existing.length && existing[0].enabled_at)
             throw new Error("2FA is already enabled");
@@ -46,25 +36,13 @@ async function startTwoFactorEnrollment(userId) {
 
         // Save encrypted secret to MySQL
         if (existing.length === 0) {
-            await connection.execute(
-                `INSERT INTO UserTwoFactor
-                 (user_id, encrypted_secret, enabled_at, last_used_step)
-                 VALUES (?, ?, NULL, NULL)`,
-                [userId, setup.encryptedSecret]
-            );
+            await dal.insertEnrollment(connection, [userId, setup.encryptedSecret]);
         } else {
             // Replace a previous unfinished enrollment
-            await connection.execute(
-                `UPDATE UserTwoFactor
-                 SET encrypted_secret = ?,
-                     enabled_at = NULL,
-                     last_used_step = NULL
-                 WHERE user_id = ?`,
-                [setup.encryptedSecret, userId]
-            );
+            await dal.replaceEnrollment(connection, [setup.encryptedSecret, userId]);
         }
 
-        await connection.commit();
+        await dal.commit(connection);
 
         return {
             qrCode: setup.qrCode,
@@ -72,10 +50,10 @@ async function startTwoFactorEnrollment(userId) {
         };
 
     } catch (error) {
-        await connection.rollback();
+        await dal.rollback(connection);
         throw error;
     } finally {
-        connection.release();
+        dal.release(connection);
     }
 }
 
@@ -89,18 +67,13 @@ async function confirmTwoFactorEnrollment(userId, code) {
         throw new Error("Invalid 2FA code");
     }
 
-    const connection = await db.getConnection();
+    const connection = await dal.getConnection();
 
     try {
-        await connection.beginTransaction();
+        await dal.beginTransaction(connection);
 
         // Lock the enrollment record
-        const [rows] = await connection.execute(
-            `SELECT encrypted_secret, enabled_at, last_used_step
-             FROM UserTwoFactor
-             WHERE user_id = ? FOR UPDATE`,
-            [userId]
-        );
+        const [rows] = await dal.lockEnrollmentForConfirmation(connection, [userId]);
 
         if (rows.length === 0) {
             throw new Error("2FA enrollment not found");
@@ -125,15 +98,9 @@ async function confirmTwoFactorEnrollment(userId, code) {
         }
 
         // Activate 2FA and record the consumed time step
-        await connection.execute(
-            `UPDATE UserTwoFactor
-             SET enabled_at = UTC_TIMESTAMP(),
-                 last_used_step = ?
-             WHERE user_id = ?`,
-            [result.timeStep, userId]
-        );
+        await dal.enableEnrollment(connection, [result.timeStep, userId]);
 
-        await connection.commit();
+        await dal.commit(connection);
 
         return {
             success: true,
@@ -141,10 +108,10 @@ async function confirmTwoFactorEnrollment(userId, code) {
         };
 
     } catch (error) {
-        await connection.rollback();
+        await dal.rollback(connection);
         throw error;
     } finally {
-        connection.release();
+        dal.release(connection);
     }
 }
 
@@ -158,21 +125,16 @@ async function verifyLoginTwoFactor(userId, code) {
         return { valid: false };
     }
 
-    const connection = await db.getConnection();
+    const connection = await dal.getConnection();
 
     try {
-        await connection.beginTransaction();
+        await dal.beginTransaction(connection);
 
         // Lock the user's 2FA configuration
-        const [rows] = await connection.execute(
-            `SELECT encrypted_secret, enabled_at, last_used_step
-             FROM UserTwoFactor
-             WHERE user_id = ? FOR UPDATE`,
-            [userId]
-        );
+        const [rows] = await dal.lockEnrollmentForLogin(connection, [userId]);
 
         if (!rows.length || !rows[0].enabled_at) {
-            await connection.rollback();
+            await dal.rollback(connection);
             return { valid: false };
         }
 
@@ -187,38 +149,30 @@ async function verifyLoginTwoFactor(userId, code) {
         );
 
         if (!result.valid) {
-            await connection.rollback();
+            await dal.rollback(connection);
             return { valid: false };
         }
 
         // Prevent replay of previously accepted codes
-        const [update] = await connection.execute(
-            `UPDATE UserTwoFactor
-             SET last_used_step = ?
-             WHERE user_id = ?
-               AND (last_used_step IS NULL OR last_used_step < ?)`,
-            [result.timeStep, userId, result.timeStep]
-        );
+        const [update] = await dal.consumeTimeStep(connection, [result.timeStep, userId, result.timeStep]);
 
         if (update.affectedRows !== 1) {
-            await connection.rollback();
+            await dal.rollback(connection);
             return { valid: false };
         }
 
-        await connection.commit();
+        await dal.commit(connection);
 
         return { valid: true };
 
     } catch (error) {
-        await connection.rollback();
+        await dal.rollback(connection);
         throw error;
     } finally {
-        connection.release();
+        dal.release(connection);
     }
 }
 
-
-module.exports = { startTwoFactorEnrollment };
 
 module.exports = {
     startTwoFactorEnrollment,

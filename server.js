@@ -1,9 +1,10 @@
 
-const { sessionMiddleware } = require("./sessionConfig");
+require("dotenv").config({ path: require("path").join(__dirname, "backend/.env") });
+const { sessionMiddleware } = require("./backend/config/sessionConfig");
 const express = require('express');
 const path = require('path');
-const db = require('./db');
-const authRoutes = require('./routes/authRoutes');
+const { checkDatabaseHealth } = require('./backend/BLL/healthService');
+const authRoutes = require('./backend/PL/routes/authRoutes');
 
 const app = express();
 const port = process.env.PORT || 1337;
@@ -27,7 +28,7 @@ app.get('/api/health', (req, res) => {
 // Check whether MySQL is connected
 app.get('/api/db-health', async (req, res) => {
     try {
-        await db.query('SELECT 1');
+        await checkDatabaseHealth();
 
         res.json({
             status: 'ok',
@@ -44,7 +45,7 @@ app.get('/api/db-health', async (req, res) => {
 });
 
 // Serve frontend
-app.use(express.static(path.join(__dirname, '../frontend')));
+app.use(express.static(path.join(__dirname, 'frontend')));
 
 // Start server
 app.listen(port, '0.0.0.0', () => {

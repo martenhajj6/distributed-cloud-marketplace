@@ -1,5 +1,5 @@
 
-const db = require("./db");
+const dal = require("../../DAL/auth/verificationDAL");
 const {
     createVerificationToken,
     hashVerificationToken
@@ -10,17 +10,12 @@ const { sendVerificationEmail } = require("./emailService");
 // 1. Generate and store a verification token
 async function createAndStoreToken(userId) {
     const { token, tokenHash } = createVerificationToken();
-    const connection = await db.getConnection();
+    const connection = await dal.getConnection();
 
     try {
-        await connection.beginTransaction();
+        await dal.beginTransaction(connection);
 
-        const [users] = await connection.execute(
-            `SELECT email_verified_at
-             FROM Users
-             WHERE user_id = ? FOR UPDATE`,
-            [userId]
-        );
+        const [users] = await dal.lockUserForToken(connection, [userId]);
 
         if (users.length === 0)
             throw new Error("User not found");
@@ -29,48 +24,25 @@ async function createAndStoreToken(userId) {
             throw new Error("Email already verified");
 
         // Prevent repeated requests within one minute
-        const [recent] = await connection.execute(
-            `SELECT token_id
-             FROM EmailVerificationTokens
-             WHERE user_id = ?
-               AND expires_at > DATE_ADD(
-                   UTC_TIMESTAMP(), INTERVAL 29 MINUTE
-               )
-             LIMIT 1`,
-            [userId]
-        );
+        const [recent] = await dal.findRecentToken(connection, [userId]);
 
         if (recent.length > 0)
             throw new Error("Please wait before requesting another email");
 
         // Invalidate previous unused tokens
-        await connection.execute(
-            `UPDATE EmailVerificationTokens
-             SET used_at = UTC_TIMESTAMP()
-             WHERE user_id = ?
-               AND used_at IS NULL`,
-            [userId]
-        );
+        await dal.invalidateUnusedTokens(connection, [userId]);
 
         // Store the hashed token with 30-minute expiration
-        await connection.execute(
-            `INSERT INTO EmailVerificationTokens
-             (user_id, token_hash, expires_at)
-             VALUES (
-                 ?, ?,
-                 DATE_ADD(UTC_TIMESTAMP(), INTERVAL 30 MINUTE)
-             )`,
-            [userId, tokenHash]
-        );
+        await dal.insertToken(connection, [userId, tokenHash]);
 
-        await connection.commit();
+        await dal.commit(connection);
         return token;
 
     } catch (error) {
-        await connection.rollback();
+        await dal.rollback(connection);
         throw error;
     } finally {
-        connection.release();
+        dal.release(connection);
     }
 }
 
@@ -82,18 +54,13 @@ async function verifyEmailToken(token) {
     }
 
     const tokenHash = hashVerificationToken(token);
-    const connection = await db.getConnection();
+    const connection = await dal.getConnection();
 
     try {
-        await connection.beginTransaction();
+        await dal.beginTransaction(connection);
 
         // Find the token
-        const [tokens] = await connection.execute(
-            `SELECT token_id, user_id
-             FROM EmailVerificationTokens
-             WHERE token_hash = ?`,
-            [tokenHash]
-        );
+        const [tokens] = await dal.findToken(connection, [tokenHash]);
 
         if (tokens.length === 0)
             throw new Error("Invalid or expired verification link");
@@ -101,38 +68,21 @@ async function verifyEmailToken(token) {
         const { token_id, user_id } = tokens[0];
 
         // Lock the user record
-        const [users] = await connection.execute(
-            `SELECT email_verified_at
-             FROM Users
-             WHERE user_id = ? FOR UPDATE`,
-            [user_id]
-        );
+        const [users] = await dal.lockUserForVerification(connection, [user_id]);
 
         if (users.length === 0 || users[0].email_verified_at)
             throw new Error("Invalid or already verified account");
 
         // Accept only an unused, unexpired token
-        const [result] = await connection.execute(
-            `UPDATE EmailVerificationTokens
-             SET used_at = UTC_TIMESTAMP()
-             WHERE token_id = ?
-               AND used_at IS NULL
-               AND expires_at > UTC_TIMESTAMP()`,
-            [token_id]
-        );
+        const [result] = await dal.consumeToken(connection, [token_id]);
 
         if (result.affectedRows !== 1)
             throw new Error("Invalid or expired verification link");
 
         // Mark the email as verified
-        await connection.execute(
-            `UPDATE Users
-             SET email_verified_at = UTC_TIMESTAMP()
-             WHERE user_id = ?`,
-            [user_id]
-        );
+        await dal.markEmailVerified(connection, [user_id]);
 
-        await connection.commit();
+        await dal.commit(connection);
 
         return {
             success: true,
@@ -140,10 +90,10 @@ async function verifyEmailToken(token) {
         };
 
     } catch (error) {
-        await connection.rollback();
+        await dal.rollback(connection);
         throw error;
     } finally {
-        connection.release();
+        dal.release(connection);
     }
 }
 
@@ -161,13 +111,7 @@ async function resendVerification(email) {
 
     try {
         // Find an existing unverified account
-        const [users] = await db.execute(
-            `SELECT user_id, first_name
-             FROM Users
-             WHERE email = ?
-               AND email_verified_at IS NULL`,
-            [normalizedEmail]
-        );
+        const [users] = await dal.findUnverifiedByEmail(undefined, [normalizedEmail]);
 
         if (users.length === 0)
             return { message };

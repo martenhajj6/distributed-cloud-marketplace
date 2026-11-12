@@ -1,0 +1,10 @@
+database/schema/00_database.sql:7: new blank line at EOF.
+database/schema/01_auth.sql:43: new blank line at EOF.
+database/schema/02_providers.sql:37: new blank line at EOF.
+database/schema/03_networking.sql:28: new blank line at EOF.
+database/schema/04_resources.sql:189: new blank line at EOF.
+database/schema/05_usage_and_logs.sql:67: new blank line at EOF.
+database/schema/07_procedures.sql:363: new blank line at EOF.
+database/schema/08_triggers.sql:141: new blank line at EOF.
+database/seed/01_demo_users.sql:45: new blank line at EOF.
+database/seed/02_demo_providers.sql:19: new blank line at EOF.

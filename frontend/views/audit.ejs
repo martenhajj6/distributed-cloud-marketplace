@@ -1,0 +1,11 @@
+<%- include("partials/header") %>
+
+<section class="panel">
+  <div class="panelhead"><div><h3>Audit records</h3><p>Recent financial activity</p></div></div>
+  <%- include('partials/table', {
+    tableId: 'auditRows',
+    columns: ["ID", "Action", "Role", "Entity", "Entity ID", "Created"]
+  }) %>
+</section>
+
+<%- include("partials/footer") %>

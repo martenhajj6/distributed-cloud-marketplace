@@ -1,0 +1,16 @@
+<div class="tablewrap">
+  <table>
+    <thead>
+      <tr>
+        <% for (const column of columns) { %>
+          <th><%= column %></th>
+        <% } %>
+      </tr>
+    </thead>
+    <tbody id="<%= tableId %>">
+      <tr>
+        <td colspan="<%= columns.length %>" class="loading">Loading from the API…</td>
+      </tr>
+    </tbody>
+  </table>
+</div>

@@ -1,0 +1,36 @@
+<%- include("partials/header") %>
+
+<div class="cards" id="summaryCards">
+  <div class="loading">Loading summary…</div>
+</div>
+
+<section id="overviewDetails"></section>
+
+<div class="grid2" id="overviewExtras">
+  <section class="panel">
+    <div class="panelhead">
+      <div>
+        <h3>Quick actions</h3>
+        <p>Manage financial operations</p>
+      </div>
+    </div>
+    <div class="controls simple-controls">
+      <a class="btn" href="/invoices">View invoices</a>
+      <a class="btn" href="/payments">View payments</a>
+      <a class="btn" href="/refunds">Review refunds</a>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panelhead">
+      <div>
+        <h3>Environment</h3>
+      </div>
+    </div>
+    <div class="simple-controls">
+      <p>Transactions are simulated; no real payments are processed.</p>
+    </div>
+  </section>
+</div>
+
+<%- include("partials/footer") %>

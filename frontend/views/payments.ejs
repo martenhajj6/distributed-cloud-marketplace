@@ -1,0 +1,17 @@
+<%- include("partials/header") %>
+
+<section class="panel">
+  <div class="panelhead">
+    <div>
+      <h3>Payment history</h3>
+      <p id="paymentRows-description">Simulated transactions</p>
+    </div>
+  </div>
+
+  <%- include('partials/table', {
+    tableId: 'paymentRows',
+    columns: ["Payment", "Invoice", "Amount", "Status", "Date"]
+  }) %>
+</section>
+
+<%- include("partials/footer") %>

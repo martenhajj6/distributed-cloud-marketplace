@@ -1,0 +1,17 @@
+<%- include("partials/header") %>
+
+<section class="panel">
+  <div class="panelhead">
+    <div>
+      <h3>Discount catalog</h3>
+      <p id="discountRows-description">Promotional offers</p>
+    </div>
+  </div>
+
+  <%- include('partials/table', {
+    tableId: 'discountRows',
+    columns: ["ID", "Code", "Type", "Value", "Uses", "Expires", "Active"]
+  }) %>
+</section>
+
+<%- include("partials/footer") %>

@@ -1,5 +1,6 @@
 // Central Swagger configuration. Endpoints are grouped by feature.
 const system = require("./system");
+const auth = require("./auth");
 const pricing = require("./pricing");
 const billing = require("./billing");
 const finance = require("./finance");
@@ -25,6 +26,7 @@ module.exports = {
         }
     ],
     tags: [
+        { "name": "Authentication" },
         {
             "name": "System"
         },
@@ -57,6 +59,7 @@ module.exports = {
         }
     ],
     paths: {
+        ...auth,
         ...system,
         ...pricing,
         ...billing,

@@ -1,0 +1,44 @@
+
+services:
+  app:
+    build: .
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: 3000
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_USER: ${DB_USER:-marketplace}
+      DB_PASSWORD: ${DB_PASSWORD:-marketplace_dev_password}
+      DB_NAME: cloud_marketplace
+      SESSION_SECRET: ${SESSION_SECRET:?Set SESSION_SECRET in .env}
+      BILLING_HOURS_PER_MONTH: ${BILLING_HOURS_PER_MONTH:-720}
+      PLATFORM_COMMISSION_RATE: ${PLATFORM_COMMISSION_RATE:-15}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+    image: mysql:8.0
+    ports:
+      - "127.0.0.1:${MYSQL_HOST_PORT:-3307}:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root_dev_password}
+      MYSQL_DATABASE: cloud_marketplace
+      MYSQL_USER: ${DB_USER:-marketplace}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-marketplace_dev_password}
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./database/cloud_marketplace.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+    restart: unless-stopped
+
+volumes:
+  mysql_data:

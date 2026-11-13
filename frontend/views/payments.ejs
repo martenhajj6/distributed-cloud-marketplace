@@ -1,17 +1,27 @@
 <%- include("partials/header") %>
 
-<section class="panel">
-  <div class="panelhead">
-    <div>
-      <h3>Payment history</h3>
-      <p id="paymentRows-description">Simulated transactions</p>
-    </div>
-  </div>
-
-  <%- include('partials/table', {
-    tableId: 'paymentRows',
-    columns: ["Payment", "Invoice", "Amount", "Status", "Date"]
-  }) %>
+<div class="cards" id="paymentSummary"></div>
+<section class="panel" id="unpaidInvoicesSection" hidden>
+  <div class="panelhead"><div><h3>Invoices awaiting payment</h3><p>Pay your own invoices here. Payments are simulated.</p></div></div>
+  <%- include('partials/table', { tableId: 'unpaidPaymentRows', columns: ["Invoice", "Total", "Issued", "Action"] }) %>
 </section>
-
+<section class="panel">
+  <div class="panelhead"><div><h3>Payment transactions</h3><p id="paymentRows-description">Payment records are read-only. Refunds are managed from Refunds.</p></div></div>
+  <div class="payment-filters">
+    <label class="payment-filter-label">Search <input id="paymentSearch" type="search" placeholder="Payment, invoice, reference, customer…"></label>
+    <label class="payment-filter-label">Status <select id="paymentStatus"><option value="">All statuses</option><option value="Succeeded">Succeeded</option><option value="Refunded">Refunded</option></select></label>
+    <label class="payment-filter-label">From <input id="paymentFrom" type="date"></label>
+    <label class="payment-filter-label">To <input id="paymentTo" type="date"></label>
+    <button type="button" class="btn secondary" id="clearPaymentFilters">Clear filters</button>
+  </div>
+  <div class="payment-filter-count" id="paymentFilterCount" aria-live="polite"></div>
+  <%- include('partials/table', { tableId: 'paymentRows', columns: ["Payment", "Reference", "Invoice", "Customer", "Amount", "Refunded", "Status", "Date", "Details"] }) %>
+</section>
+<dialog id="paymentDetailsDialog" class="payment-detail-dialog" aria-labelledby="paymentDetailsTitle">
+  <div class="payment-detail-body">
+    <div class="modalhead"><h2 id="paymentDetailsTitle">Payment details</h2><button type="button" class="iconbtn" id="closePaymentDetails" aria-label="Close">×</button></div>
+    <div id="paymentDetailsContent"></div>
+    <div class="modalfoot"><button type="button" class="btn secondary" id="dismissPaymentDetails">Close</button></div>
+  </div>
+</dialog>
 <%- include("partials/footer") %>

@@ -35,15 +35,24 @@ async function calculatePrice({ cloud_class, cpu_cores, ram_gb, storage_gb, gpu_
 
 async function createPrice({ resource_type, cloud_class, unit_price }, actor) {
     const id = await withTransaction(async connection => {
-        const [result] = await repository.statement4(connection, [resource_type, cloud_class, unit_price]);
+        const [existing] = await repository.statement9(connection, [resource_type, cloud_class]);
+        if (existing.length && existing[0].active)
+            throw new HttpError(409, { error: `${resource_type} / ${cloud_class} already exists. Edit its price instead.` });
 
-        await recordPrice(connection, result.insertId, unit_price, unit_price);
-
-        await logAudit(connection, actor, "PRICING_RULE_CREATED", "pricing_rule", result.insertId, {
+        let ruleId;
+        if (existing.length) {
+            ruleId = existing[0].id;
+            await repository.statement10(connection, [unit_price, ruleId]);
+            await recordPrice(connection, ruleId, Number(existing[0].unit_price), unit_price);
+        } else {
+            const [result] = await repository.statement4(connection, [resource_type, cloud_class, unit_price]);
+            ruleId = result.insertId;
+            await recordPrice(connection, ruleId, unit_price, unit_price);
+        }
+        await logAudit(connection, actor, existing.length ? "PRICING_RULE_REACTIVATED" : "PRICING_RULE_CREATED", "pricing_rule", ruleId, {
             resource_type, cloud_class, unit_price
         });
-
-        return result.insertId;
+        return ruleId;
     });
 
     return id;
@@ -53,7 +62,7 @@ async function updatePrice(id, price, actor) {
     const oldPrice = await withTransaction(async connection => {
         const [rows] = await repository.statement3(connection, [id]);
 
-        if (!rows.length) throw notFound("Pricing rule not found.");
+        if (!rows.length || !rows[0].active) throw notFound("Active pricing rule not found.");
 
         const old = Number(rows[0].unit_price);
 
@@ -69,4 +78,17 @@ async function updatePrice(id, price, actor) {
     return oldPrice;
 }
 
-module.exports = { listPrices, priceHistory, calculatePrice, createPrice, updatePrice };
+async function deletePrice(id, actor) {
+    await withTransaction(async connection => {
+        const [rows] = await repository.statement3(connection, [id]);
+        if (!rows.length || !rows[0].active) throw notFound("Active pricing rule not found.");
+        await repository.statement8(connection, [id]);
+        await logAudit(connection, actor, "PRICING_RULE_DEACTIVATED", "pricing_rule", id, {
+            resource_type: rows[0].resource_type,
+            cloud_class: rows[0].cloud_class,
+            unit_price: Number(rows[0].unit_price)
+        });
+    });
+}
+
+module.exports = { listPrices, priceHistory, calculatePrice, createPrice, updatePrice, deletePrice };

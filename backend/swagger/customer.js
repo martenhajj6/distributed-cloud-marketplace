@@ -69,6 +69,13 @@ module.exports = {
                     "description": "Your role may not use this endpoint"
                 }
             }
+        },
+        "post": {
+            "tags": ["Customer"],
+            "summary": "Pay one of my unpaid invoices (simulated)",
+            "description": "Only the authenticated customer may pay their own unpaid invoice. Automatically records the payment, changes invoice to Paid, and allocates provider earnings. Requires provider-linked invoice items.",
+            "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "required": ["invoice_id"], "properties": {"invoice_id": {"type": "integer", "minimum": 1}}}}}},
+            "responses": {"201": {"description": "Payment succeeded"}, "400": {"description": "Invalid invoice or missing provider allocation"}, "404": {"description": "Invoice not found for this customer"}, "409": {"description": "Invoice already paid or cancelled"}}
         }
     },
     "/api/customers/me/refunds": {

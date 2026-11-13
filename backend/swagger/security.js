@@ -5,19 +5,19 @@ module.exports = {
             "type": "http",
             "scheme": "bearer",
             "bearerFormat": "JWT",
-            "description": "Developer 1's login token (once DEVELOPER1_AUTH_PATH is configured)."
+            "description": "Bearer token only if the configured Developer 1 middleware accepts Bearer tokens. This application does not itself issue JWTs."
         },
         "devUserId": {
             "type": "apiKey",
             "in": "header",
             "name": "x-user-id",
-            "description": "Local testing only (DEV_AUTH=true)."
+            "description": "Local testing only, when DEV_AUTH=true and NODE_ENV is not production. Provide with x-user-role."
         },
         "devUserRole": {
             "type": "apiKey",
             "in": "header",
             "name": "x-user-role",
-            "description": "Local testing only: Customer, Provider or Admin."
+            "description": "Local testing only, when DEV_AUTH=true and NODE_ENV is not production. Use Customer, Provider or Admin and supply x-user-id."
         }
     },
     "security": [

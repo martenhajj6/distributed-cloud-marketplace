@@ -20,7 +20,7 @@ async function createWithdrawal({ providerId, amount, note }) {
 
         if (value > available)
             throw new HttpError(400, {
-                error: "Withdrawal exceeds the available provider balance.",
+                error: `Requested $${value.toFixed(2)} exceeds your available balance of $${available.toFixed(2)}.`,
                 available_balance: available
             });
 

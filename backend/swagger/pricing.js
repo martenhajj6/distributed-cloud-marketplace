@@ -67,6 +67,12 @@ module.exports = {
         }
     },
     "/api/pricing/{id}": {
+        "delete": {
+            "tags": ["Pricing"],
+            "summary": "Deactivate pricing rule (preserves price history)",
+            "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer", "minimum": 1 } }],
+            "responses": { "200": { "description": "Rule deactivated" }, "404": { "description": "Active rule not found" } }
+        },
         "put": {
             "tags": [
                 "Pricing"

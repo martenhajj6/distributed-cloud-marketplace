@@ -71,7 +71,8 @@ module.exports = {
                                         "required": [
                                             "resource_type",
                                             "cloud_class",
-                                            "quantity"
+                                            "quantity",
+                                            "provider_id"
                                         ],
                                         "properties": {
                                             "resource_type": {
@@ -91,6 +92,7 @@ module.exports = {
                                                     "Critical"
                                                 ]
                                             },
+                                            "provider_id": { "type": "integer", "minimum": 1, "description": "Provider account ID for manual invoices; automatic usage billing derives this." },
                                             "quantity": {
                                                 "type": "number",
                                                 "exclusiveMinimum": 0
@@ -144,6 +146,15 @@ module.exports = {
                     "description": "Invoice not found"
                 }
             }
+        }
+    },
+    "/api/billing/invoices/{id}/cancel": {
+        "patch": {
+            "tags": ["Billing"],
+            "summary": "Cancel an unpaid invoice (Admin only)",
+            "description": "Preserves invoice and line items, rejects paid or already cancelled invoices, and records an audit log entry.",
+            "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "integer", "minimum": 1}}],
+            "responses": {"200": {"description": "Invoice cancelled"}, "400": {"description": "Invalid ID"}, "404": {"description": "Invoice not found"}, "409": {"description": "Invoice not eligible for cancellation"}}
         }
     },
     "/api/billing/usage-invoices": {

@@ -29,6 +29,14 @@ router.get("/payments", handle(async (req, res) => {
     res.json(await payment.listPayments({ customerId: req.user.id }));
 }, "Could not load your payments."));
 
+// Customers initiate simulated payments for their own unpaid invoices.
+router.post("/payments", handle(async (req, res) => {
+    const invoiceId = positiveInteger(req.body.invoice_id);
+    if (!invoiceId) throw bad("Select a valid invoice.");
+    const result = await payment.createPayment({ invoiceId, customerId: req.user.id });
+    res.status(201).json(result);
+}, "Could not pay invoice."));
+
 // Request refund
 router.post("/refunds", handle(async (req, res) => {
     const paymentId = positiveInteger(req.body.payment_id);

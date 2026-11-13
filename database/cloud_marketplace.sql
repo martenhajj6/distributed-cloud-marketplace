@@ -1,13 +1,13 @@
 -- ============================================================================
 -- Version 1.1, MySQL 8.0.16+, InnoDB, utf8mb4
 -- Database: cloud_marketplace
---=============================================================================
+-- =============================================================================
 
-DROP DATABASE IF EXISTS DistributedCloudMarketplace;
-DROP DATABASE IF EXISTS cloud_marketplace;
+DROP DATABASE IF EXISTS DistributedCloudMarketplace; -- martens
+DROP DATABASE IF EXISTS cloud_marketplace; -- mines
 
 CREATE DATABASE cloud_marketplace
-CHARACTER SET utf8mb4
+CHARACTER SET utf8mb4 -- hayde to accept all symbols and emojis in case ai hat shi
 COLLATE utf8mb4_0900_ai_ci;
 
 USE cloud_marketplace;
@@ -397,6 +397,7 @@ CREATE TABLE pricing_rules (
     resource_type ENUM('CPU','RAM','Storage','GPU') NOT NULL,
     cloud_class ENUM('Economy','Business','Critical') NOT NULL,
     unit_price DECIMAL(10,2) NOT NULL,
+    active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT unique_resource_class UNIQUE (resource_type,cloud_class),
     CONSTRAINT ck_price_positive CHECK (unit_price >= 0)

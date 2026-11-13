@@ -20,8 +20,11 @@ router.post("/invoices", handle(async (req, res) => {
         throw bad("Invalid customer, period, or resources.");
 
     // Quantities are validated by priceItems
-    const items = resources.map(({ resource_type, cloud_class, quantity }) =>
-        ({ resource_type, cloud_class, quantity: Number(quantity) }));
+    const items = resources.map(({ resource_type, cloud_class, quantity, provider_id }) =>
+        ({ resource_type, cloud_class, quantity: Number(quantity), provider_id: positiveInteger(provider_id) }));
+
+    if (items.some(item => !item.provider_id))
+        throw bad("Every invoice resource must have a valid Provider ID. Use usage billing to derive providers automatically.");
 
     if (items.some(i => !RESOURCE_TYPES.includes(i.resource_type) || !CLOUD_CLASSES.includes(i.cloud_class)))
         throw bad("Invalid resource type or class.");
@@ -75,5 +78,12 @@ router.get("/invoices/:id", handle(async (req, res) => {
 
     res.json(invoice);
 }, "Could not load invoice details."));
+
+// Admin cancellation: retain the invoice and its line items for financial history.
+router.patch("/invoices/:id/cancel", handle(async (req, res) => {
+    const id = positiveInteger(req.params.id);
+    if (!id) throw bad("Invalid invoice ID.");
+    res.json(await billing.cancelInvoice(id, req.user));
+}, "Could not cancel invoice."));
 
 module.exports = router;

@@ -80,24 +80,44 @@ function requireRole(...allowedRoles) {
         return next();
     };
 }
-function sendError(res, error, fallbackMessage = "Request failed.") {
+// Return useful, safe errors without exposing SQL, credentials or internal paths.
+function sendError(res, error, fallbackMessage = "Request failed.", duplicateMessage = "Record already exists.") {
     if (error instanceof HttpError) return res.status(error.status).json(error.body);
+
+    const code = error?.code;
+    const failures = {
+        ER_DUP_ENTRY: [409, duplicateMessage],
+        ER_NO_REFERENCED_ROW_2: [409, "A related record does not exist."],
+        ER_ROW_IS_REFERENCED_2: [409, "This record is still used by other records."],
+        ER_BAD_NULL_ERROR: [400, "A required field is missing."],
+        ER_TRUNCATED_WRONG_VALUE: [400, "One of the supplied values has an invalid format."],
+        ER_DATA_TOO_LONG: [400, "A field exceeds its allowed length."],
+        ER_DATA_OUT_OF_RANGE: [400, "A numeric value is outside its allowed range."],
+        ER_LOCK_DEADLOCK: [409, "Another transaction conflicted with this request. Please retry."],
+        ER_LOCK_WAIT_TIMEOUT: [503, "The database is busy. Please retry shortly."],
+        ECONNREFUSED: [503, "Database connection unavailable."],
+        ETIMEDOUT: [503, "Database connection timed out."],
+        PROTOCOL_CONNECTION_LOST: [503, "Database connection was interrupted."],
+        ER_CON_COUNT_ERROR: [503, "Database connection limit reached. Please retry shortly."],
+        ER_ACCESS_DENIED_ERROR: [503, "Database authentication failed. Contact the administrator."],
+        ER_BAD_DB_ERROR: [503, "Configured database does not exist. Contact the administrator."],
+        ER_NO_SUCH_TABLE: [500, "A required database table is missing. Contact the administrator."],
+        ER_BAD_FIELD_ERROR: [500, "Database schema is incompatible with this operation. Contact the administrator."]
+    };
+    // Log original failures on the server only.
     console.error(error);
-    return res.status(500).json({ error: fallbackMessage });
+    const [status, message] = failures[code] || [500, fallbackMessage];
+    return res.status(status).json({ error: message });
 }
 
-// Route wrapper: catches errors, maps duplicate-key errors to 409
+// Route wrapper: preserves service validation errors and maps known DB failures.
 const handle = (fn, message = "Request failed.", duplicate = "Record already exists.") =>
     async (req, res) => {
         try {
             if (req.body == null) req.body = {};
             await fn(req, res);
         } catch (error) {
-            if (error.code === "ER_DUP_ENTRY")
-                return res.status(409).json({ error: duplicate });
-            if (["ER_LOCK_DEADLOCK", "ER_LOCK_WAIT_TIMEOUT"].includes(error.code))
-                return res.status(409).json({ error: "A concurrent transaction conflicted with this request. Please retry." });
-            sendError(res, error, message);
+            sendError(res, error, message, duplicate);
         }
     };
 

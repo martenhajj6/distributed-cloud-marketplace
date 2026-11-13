@@ -54,6 +54,14 @@ router.put("/:id", admin, handle(async (req, res) => {
     res.json({ message: "Price updated", id, old_price: oldPrice, new_price: price });
 }, "Could not update price."));
 
+// Retire a rule without removing its price history or audit records.
+router.delete("/:id", admin, handle(async (req, res) => {
+    const id = positiveInteger(req.params.id);
+    if (!id) throw bad("Invalid pricing rule ID.");
+    await pricing.deletePrice(id, req.user);
+    res.json({ message: "Pricing rule deleted from the active catalog; history preserved.", id });
+}, "Could not delete pricing rule."));
+
 // Pricing history
 router.get("/:id/history", admin, handle(async (req, res) => {
     const id = positiveInteger(req.params.id);

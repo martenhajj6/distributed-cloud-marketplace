@@ -63,4 +63,16 @@ async function markNotificationRead(id, recipient = null) {
     return result.affectedRows > 0;
 }
 
-module.exports = { listNotifications, markNotificationRead, statement1 };
+// Alert every administrator when a new refund request requires review.
+async function notifyAdmins(connection, { title, message, paymentId, notificationType }) {
+    const [result] = await connection.execute(`
+        INSERT INTO Notifications
+            (user_id, category, channel, title, message, payment_id, notification_type)
+        SELECT user_id, 'billing', 'in_app', ?, ?, ?, ?
+        FROM Users
+        WHERE role = 'admin'
+    `, [title, message, paymentId ?? null, notificationType ?? null]);
+    return result.affectedRows;
+}
+
+module.exports = { listNotifications, markNotificationRead, notifyAdmins, statement1 };

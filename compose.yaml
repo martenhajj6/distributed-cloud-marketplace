@@ -29,7 +29,7 @@ services:
       MYSQL_PASSWORD: ${DB_PASSWORD:-marketplace_dev_password}
     volumes:
       - mysql_data:/var/lib/mysql
-      - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./database/cloud_marketplace.sql:/docker-entrypoint-initdb.d/cloud-marketplace.sql:ro
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1"]
       interval: 10s

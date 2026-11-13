@@ -6,4 +6,7 @@ const { listNotifications, markNotificationRead } = repository;
 const notify = (conn, { to, id, type, title, message, paymentId, refundId = null }) =>
     repository.statement1(conn, [to, id, type, title, message, paymentId, refundId]);
 
-module.exports = { listNotifications, markNotificationRead, notify };
+// Create a personal inbox entry for each admin within the same transaction.
+const notifyAdmins = (conn, details) => repository.notifyAdmins(conn, details);
+
+module.exports = { listNotifications, markNotificationRead, notify, notifyAdmins };

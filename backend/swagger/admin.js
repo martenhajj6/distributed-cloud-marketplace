@@ -1,5 +1,20 @@
 // Admin endpoints for Swagger UI.
 module.exports = {
+    "/api/admin/health/database": {
+        "get": {
+            "tags": ["Admin"],
+            "summary": "Check database connection (Admin; optional)",
+            "description": "Available only when ENABLE_DB_HEALTH_CHECK=true at server startup. Returns 404 when disabled. Requires Admin authentication.",
+            "responses": {
+                "200": { "description": "Database connected; returns status=ok and database=connected" },
+                "401": { "description": "Not authenticated" },
+                "403": { "description": "Admin role required" },
+                "404": { "description": "Health check disabled" },
+                "503": { "description": "Database connection unavailable" },
+                "500": { "description": "Database health check failed" }
+            }
+        }
+    },
     "/api/admin/refunds": {
         "get": {
             "tags": [

@@ -6,26 +6,21 @@ const notificationCount = document.getElementById("notificationCount");
 const notificationArea = document.getElementById("notificationArea");
 
 async function loadNotifications() {
-    if (state.role === "Admin") {
-        notificationItems.textContent = "Admin notifications are not configured.";
-        notificationCount.hidden = true;
-        return;
-    }
-
     try {
         const notifications = list(await api("/api/notifications"));
         let unread = 0;
         let html = "";
 
         for (const item of notifications) {
-            if (!item.is_read) unread++;
+            if (!Number(item.is_read)) unread++;
 
             const message = escapeHtml(value(item, "message", "body", "title") || "Notification");
-            const status = item.is_read ? "read" : "unread";
+            const isRead = Boolean(Number(item.is_read));
+            const status = isRead ? "read" : "unread";
 
             html += `<div class="notification-item ${status}">
                 <div>${message}</div>
-                ${item.is_read ? "" : `<button type="button" class="inlinebtn" data-notification-id="${escapeHtml(item.id)}">Mark read</button>`}
+                ${isRead ? "" : `<button type="button" class="inlinebtn" data-notification-id="${escapeHtml(item.id)}">Mark read</button>`}
             </div>`;
         }
 
@@ -33,7 +28,7 @@ async function loadNotifications() {
         notificationCount.textContent = unread > 9 ? "9+" : String(unread);
         notificationItems.innerHTML = html || "No notifications yet.";
 
-        document.querySelectorAll("[data-notification-id]").forEach(button => {
+        notificationItems.querySelectorAll("[data-notification-id]").forEach(button => {
             button.onclick = async function() {
                 try {
                     await api("/api/notifications/" + button.dataset.notificationId + "/read", "PATCH");

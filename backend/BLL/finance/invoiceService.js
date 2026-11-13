@@ -4,6 +4,7 @@ const repository = require("../../DAL/invoice");
 const { HttpError, money } = require("../../utils/util");
 const { bad, makeRef } = require("../../utils/helpers");
 const discounts = require("./discountService");
+const { logAudit } = require("../../DAL/audit");
 
 // Price items from pricing_rules (one query for all items)
 async function priceItems(db, items) {
@@ -39,6 +40,19 @@ async function priceItems(db, items) {
 
 // Create invoice (must run inside a transaction). Input is validated by the routes.
 async function createInvoiceRecord(db, { customerId, periodStart, periodEnd, items, discountCode }) {
+    const [[customer]] = await repository.findCustomer(db, customerId);
+    if (!customer)
+        throw new HttpError(404, { error: `Customer ID ${customerId} does not exist.` });
+    if (String(customer.role).toLowerCase() !== "customer")
+        throw bad(`User ID ${customerId} is not a customer account.`);
+
+    const providerIds = [...new Set(items.map(item => Number(item.provider_id)))];
+    if (!providerIds.length || providerIds.some(id => !Number.isSafeInteger(id) || id <= 0))
+        throw bad("Every invoice item must identify a valid provider. Usage invoices derive this from usage records.");
+    const [existingProviders] = await repository.findProviders(db, providerIds);
+    if (existingProviders.length !== providerIds.length)
+        throw bad("One or more Provider IDs do not belong to provider accounts.");
+
     const [periods] = await repository.statement7(db, [customerId, periodStart, periodEnd]);
 
     let periodId = periods[0]?.id;
@@ -112,7 +126,23 @@ async function getInvoice(db, id, customerId = null) {
     return { ...invoice, currency: "USD", items };
 }
 
-module.exports = {
+async function cancelInvoice(id, actor) {
+    return withTransaction(async connection => {
+        const [[invoice]] = await repository.lockInvoice(connection, id);
+        if (!invoice) throw new HttpError(404, { error: `Invoice ID ${id} does not exist.` });
+        if (invoice.status !== "Unpaid")
+            throw new HttpError(409, { error: `Invoice ${invoice.invoice_number} is ${invoice.status}. Only unpaid invoices can be cancelled.` });
+        const [payments] = await repository.paymentExists(connection, id);
+        if (payments.length)
+            throw new HttpError(409, { error: "This invoice has a payment record and cannot be cancelled. Use the refund process instead." });
+        const [result] = await repository.cancelInvoice(connection, id);
+        if (!result.affectedRows) throw new HttpError(409, { error: "Invoice status changed. Reload and try again." });
+        await logAudit(connection, actor, "CancelInvoice", "Invoice", id, { invoice_number: invoice.invoice_number, previous_status: "Unpaid", new_status: "Cancelled" });
+        return { message: "Invoice cancelled successfully.", invoice_id: id, status: "Cancelled" };
+    });
+}
+
+module.exports = { cancelInvoice,
     priceItems, createInvoiceRecord,
     createInvoice: input => withTransaction(connection => createInvoiceRecord(connection, input)),
     listInvoices: customerId => listInvoices(db, customerId),

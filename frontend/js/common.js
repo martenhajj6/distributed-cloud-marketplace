@@ -60,7 +60,10 @@ async function api(url, method = "GET", body) {
     try {
         result = JSON.parse(text);
     } catch {
-        result = { error: text };
+        // Express's default 404 is HTML, not a useful message to display in forms.
+        result = { error: response.status === 404
+            ? `Endpoint not found (${method} ${url}). Restart the updated backend.`
+            : `Unexpected server response (HTTP ${response.status}).` };
     }
 
     if (!response.ok)
@@ -95,7 +98,7 @@ function actionButton(label, action) {
 
 // Errors and reload
 function showError(error) {
-    notice(error.message + " — Check MySQL, .env and the role/user ID in Settings.", true);
+    notice(error.message || "Request failed.", true);
 
     document.querySelectorAll("tbody .loading").forEach(el => {
         el.closest("tbody").innerHTML = '<tr><td colspan="10">Unable to load data.</td></tr>';

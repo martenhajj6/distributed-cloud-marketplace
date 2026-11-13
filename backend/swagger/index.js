@@ -16,7 +16,7 @@ module.exports = {
     info: {
         "title": "Cloud Marketplace API",
         "version": "1.0.0",
-        "description": "Pricing, billing, payments, refunds, provider earnings and dashboard APIs. Payments and refunds are simulated. /api/finance, /api/billing and /api/admin are Admin only; /api/customers/me, /api/providers/me are role-specific; prices can be read by any logged-in user. Use Authorize to send a login token (or the x-user-id / x-user-role headers when DEV_AUTH=true)."
+        "description": "Simulated marketplace finance APIs: pricing, billing, payments, refunds, earnings, withdrawals, discounts, notifications and dashboards. No real payments are processed. Manual invoices require a provider ID for each item; usage invoices derive providers from recorded resource usage. Monthly billing uses npm run billing:preview and npm run billing:run. Authentication is handled by Developer 1's configured middleware (if DEVELOPER1_AUTH_PATH is set), or by local testing headers x-user-id and x-user-role when DEV_AUTH=true and NODE_ENV is not production. Select the appropriate Authorize method. /api/billing, /api/finance and /api/admin require Admin; /api/customers/me and /api/providers/me require their respective roles. The optional database health route requires ENABLE_DB_HEALTH_CHECK=true."
     },
     servers: [
         {

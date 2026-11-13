@@ -21,6 +21,11 @@ async function buildUsageItems(db, customerId, periodStart, periodEnd) {
     const [[row]] = await repository.statement1(db, [end]);
 
     const cap = row.cap;
+    const unmetered = await repository.unmeteredRunningVms(db, customerId, start, cap);
+    if (unmetered.length) throw new HttpError(409, {
+        error: "Running VM has no usage records for this billing period. Resource lifecycle metering must be fixed before invoicing.",
+        vm_ids: unmetered
+    });
     const { vms, resources } = await repository.loadUsage(db, customerId, start, cap);
 
     const buckets = new Map();
@@ -57,6 +62,9 @@ async function buildUsageItems(db, customerId, periodStart, periodEnd) {
 
     for (const r of resources)
         add(r.provider_id, r.resource_type, r.cloud_class, r.quantity, seconds(r.started_at, r.ended_at));
+
+    if ([...buckets.values()].some(item => !Number.isSafeInteger(Number(item.provider_id)) || Number(item.provider_id) <= 0))
+        throw new HttpError(409, { error: "Usage records are missing provider assignment. Fix resource ownership before billing." });
 
     const items = [...buckets.values()]
         .map(item => ({

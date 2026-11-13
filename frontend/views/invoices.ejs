@@ -10,8 +10,14 @@
 
   <%- include('partials/table', {
     tableId: 'invoiceRows',
-    columns: ["Invoice", "Customer", "Total", "Status", "Created"]
+    columns: ["Invoice", "Customer", "Total", "Status", "Created", "Actions"]
   }) %>
 </section>
+
+<dialog id="invoiceDetailsDialog" class="invoice-details-dialog">
+  <div class="modalhead"><h2>Invoice details</h2><button type="button" class="iconbtn" id="closeInvoiceDetails" aria-label="Close">×</button></div>
+  <div id="invoiceDetailsContent"></div>
+  <div class="modalfoot"><button type="button" class="btn secondary" id="dismissInvoiceDetails">Close</button></div>
+</dialog>
 
 <%- include("partials/footer") %>

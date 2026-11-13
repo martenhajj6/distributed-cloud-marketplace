@@ -25,14 +25,15 @@ async function deriveAllocations(connection, invoiceId, invoiceTotal) {
 }
 
 // allocations: optional [{ provider_id, gross_amount }]; derived from the invoice when omitted
-async function createPayment({ invoiceId, allocations = null }) {
+async function createPayment({ invoiceId, allocations = null, customerId = null }) {
     if (!(COMMISSION >= 0 && COMMISSION <= 100))
         throw new HttpError(500, { error: "Invalid commission rate." });
 
     return withTransaction(async connection => {
         const [[invoice]] = await repository.statement4(connection, [invoiceId]);
 
-        if (!invoice) throw new HttpError(404, { error: "Invoice not found." });
+        if (!invoice || (customerId !== null && Number(invoice.customer_id) !== Number(customerId)))
+            throw new HttpError(404, { error: "Invoice not found for your account." });
 
         if (invoice.status !== "Unpaid")
             throw new HttpError(409, {
@@ -41,7 +42,7 @@ async function createPayment({ invoiceId, allocations = null }) {
             });
 
         const providers = allocations ?? await deriveAllocations(connection, invoiceId, invoice.total);
-        if (!providers?.length) throw bad("Provider allocations required.");
+        if (!providers?.length) throw bad("This invoice has no provider allocation. Please contact support; payment cannot be completed until its invoice items identify a provider.");
 
         const total = money(providers.reduce((sum, p) => sum + p.gross_amount, 0));
 

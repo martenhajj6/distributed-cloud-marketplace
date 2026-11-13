@@ -33,7 +33,8 @@ function listPayments({ invoiceId = null, customerId = null } = {}) {
 
     return query(`
         SELECT p.id, p.payment_reference, p.invoice_id, i.invoice_number,
-               p.amount, p.status, p.simulated, p.created_at
+               p.amount, p.status, p.simulated, p.created_at, bp.customer_id,
+               COALESCE((SELECT SUM(r.amount) FROM refunds r WHERE r.payment_id = p.id AND r.status = 'Succeeded'), 0) AS refunded_amount
         FROM payments p
         JOIN invoices i ON i.id = p.invoice_id
         JOIN billing_periods bp ON bp.id = i.billing_period_id

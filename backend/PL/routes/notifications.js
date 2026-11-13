@@ -5,12 +5,17 @@ const { bad, notFound } = require("../../utils/helpers");
 const notifications = require("../../BLL/finance/notificationService");
 
 const router = express.Router();
-const RECIPIENTS = ["Customer", "Provider"];
+const RECIPIENTS = ["Customer", "Provider", "Admin"];
 
-// Admins pick the recipient via query; everyone else sees only their own
-const scope = req => req.user.role === "Admin"
-    ? { type: req.query.recipient_type, id: positiveInteger(req.query.recipient_id) }
-    : { type: req.user.role, id: req.user.id };
+// By default everyone, including an admin, sees only their own inbox.
+// Preserve the existing admin recipient-lookup option when explicitly requested.
+const scope = req => {
+    if (req.user.role === "Admin" &&
+        (req.query.recipient_type !== undefined || req.query.recipient_id !== undefined)) {
+        return { type: req.query.recipient_type, id: positiveInteger(req.query.recipient_id) };
+    }
+    return { type: req.user.role, id: req.user.id };
+};
 
 router.get("/", handle(async (req, res) => {
     const { type, id } = scope(req);
@@ -31,12 +36,10 @@ router.patch("/:id/read", handle(async (req, res) => {
     const id = positiveInteger(req.params.id);
     if (!id) throw bad("Invalid notification ID.");
 
-    const isAdmin = req.user.role === "Admin";
     const { type, id: recipientId } = scope(req);
+    if (!RECIPIENTS.includes(type) || !recipientId) throw notFound("Notification not found.");
 
-    if (!isAdmin && !RECIPIENTS.includes(type)) throw notFound("Notification not found.");
-
-    if (!(await notifications.markNotificationRead(id, isAdmin ? null : { type, id: recipientId })))
+    if (!(await notifications.markNotificationRead(id, { type, id: recipientId })))
         throw notFound("Notification not found.");
 
     res.json({ message: "Notification marked as read.", id, is_read: true });

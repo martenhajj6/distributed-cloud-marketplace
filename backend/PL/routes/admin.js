@@ -6,9 +6,18 @@ const { REFUND_STATUSES } = require("../../utils/constants");
 const refund = require("../../BLL/finance/refundService");
 const earnings = require("../../BLL/finance/earningsService");
 const dashboard = require("../../BLL/finance/dashboardService");
+const db = require("../../DAL/dbconn");
 
 const router = express.Router();
 router.use(requireRole("Admin"));
+
+// Optional admin-only database health check; enabled with ENABLE_DB_HEALTH_CHECK=true.
+if (process.env.ENABLE_DB_HEALTH_CHECK === "true") {
+    router.get("/health/database", handle(async (req, res) => {
+        await db.query("SELECT 1");
+        res.json({ status: "ok", database: "connected" });
+    }, "Database health check failed."));
+}
 
 // Refund requests
 router.get("/refunds", handle(async (req, res) => {

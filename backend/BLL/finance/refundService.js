@@ -3,7 +3,7 @@ const { HttpError, money, allocateAmounts } = require("../../utils/util");
 const { logAudit } = require("../../DAL/audit");
 const { withTransaction } = require("../../DAL/dbconn");
 const { bad, makeRef, positiveAmount, withCurrency } = require("../../utils/helpers");
-const { notify } = require("./notificationService");
+const { notify, notifyAdmins } = require("./notificationService");
 const { providerBalance } = require("./earningsService");
 
 async function refundedTotal(connection, paymentId) {
@@ -121,6 +121,13 @@ function createRefundRequest({ customerId, paymentId, amount, reason }) {
         await notify(connection, {
             to: "Customer", id: customerId, type: "RefundRequested", title: "Refund requested",
             message: `Your refund request #${result.insertId} for $${requested.toFixed(2)} on payment ${payment.payment_reference} is waiting for review.`,
+            paymentId
+        });
+
+        await notifyAdmins(connection, {
+            notificationType: "RefundRequested",
+            title: "Refund request needs review",
+            message: `Refund request #${result.insertId} for $${requested.toFixed(2)} is waiting for admin review.`,
             paymentId
         });
 

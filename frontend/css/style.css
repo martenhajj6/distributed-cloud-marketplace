@@ -380,3 +380,44 @@ dialog::backdrop { background: #14254177; }
     .cards, .grid2 { grid-template-columns: 1fr; }
     .card { padding: 18px; }
 }
+
+/* Invoice resource editor */
+.invoice-resources-section { margin: 4px 0 20px; }
+.invoice-resources-title { font-size: 13px; font-weight: 700; margin-bottom: 12px; }
+.invoice-resource { border: 1px solid #dfe5ee; border-radius: 10px; padding: 13px; margin-bottom: 10px; }
+.invoice-resource-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; font-size: 13px; }
+.invoice-remove { border: 0; background: transparent; color: #b74355; cursor: pointer; font: inherit; font-size: 12px; }
+.invoice-resource-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.invoice-resource .field { margin-bottom: 10px; }
+#addInvoiceResource { width: 100%; }
+@media (max-width: 450px) { .invoice-resource-grid { grid-template-columns: 1fr; gap: 0; } }
+
+/* Display form submission errors inside the open dialog, not behind it. */
+#modalError.modal-error { margin: 0 0 16px; }
+#modalError.modal-error[hidden] { display: none; }
+
+/* Invoice management */
+.invoice-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.invoice-details-dialog { width: min(740px, calc(100% - 2rem)); max-height: 85vh; padding: 1.4rem; border: 0; border-radius: 14px; }
+.invoice-details-dialog::backdrop { background: rgba(0,0,0,0.5); }
+.invoice-details-table { max-width: 100%; overflow-x: auto; }
+.invoice-details-table table { width: 100%; border-collapse: collapse; }
+.invoice-details-table th, .invoice-details-table td { padding: 0.6rem; border-bottom: 1px solid #ddd; text-align: left; }
+
+/* Payment monitoring dashboard */
+.payment-filters { display:flex; flex-wrap:wrap; gap:12px; padding:18px 22px; align-items:end; }
+.payment-filter-label { display:flex; flex-direction:column; gap:6px; font-size:12px; font-weight:700; color:#52627b; flex:1 1 145px; }
+.payment-filter-label input, .payment-filter-label select { width:100%; min-width:0; }
+.payment-filter-count { padding:0 22px 14px; color:#6c7a8e; font-size:12px; }
+.payment-detail-dialog { width:min(570px,94vw); }
+.payment-detail-body { padding:25px; }
+.payment-detail-list { margin:0; }
+.payment-detail-list div { display:flex; justify-content:space-between; gap:18px; padding:11px 0; border-bottom:1px solid #edf0f5; }
+.payment-detail-list dt { color:#66758b; }
+.payment-detail-list dd { margin:0; text-align:right; font-weight:700; overflow-wrap:anywhere; }
+
+/* Provider withdrawal request balance and maximum amount */
+.withdraw-balance { padding: 12px 14px; border-radius: 9px; background: var(--surface, #f4f6f9); border: 1px solid #dce1e8; margin-bottom: 14px; display: grid; gap: 4px; }
+.withdraw-balance small { color: #636e7c; line-height: 1.4; }
+.withdraw-empty { color: #b42318; margin: 6px 0 12px; }
+#f_amount + button { margin-top: 9px; }

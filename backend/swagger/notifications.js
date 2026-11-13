@@ -5,8 +5,20 @@ module.exports = {
             "tags": [
                 "Notifications"
             ],
-            "summary": "My notifications (Customer or Provider)",
+            "summary": "List my notifications (Admin can also query a recipient)",
             "parameters": [
+                {
+                    "name": "recipient_type",
+                    "in": "query",
+                    "description": "Admin only: look up a specific recipient instead of your own inbox. Requires recipient_id too.",
+                    "schema": { "type": "string", "enum": ["Customer", "Provider", "Admin"] }
+                },
+                {
+                    "name": "recipient_id",
+                    "in": "query",
+                    "description": "Admin only: recipient user ID. Requires recipient_type too.",
+                    "schema": { "type": "integer", "minimum": 1 }
+                },
                 {
                     "name": "unread_only",
                     "in": "query",
@@ -22,6 +34,9 @@ module.exports = {
                 },
                 "401": {
                     "description": "Not logged in"
+                },
+                "400": {
+                    "description": "Invalid admin recipient type or ID"
                 }
             }
         }
@@ -31,17 +46,12 @@ module.exports = {
             "tags": [
                 "Notifications"
             ],
-            "summary": "Mark my notification as read",
+            "summary": "Mark notification as read (own inbox; Admin may select recipient)",
+            "description": "By default marks a notification in your own inbox. Admins may pass recipient_type and recipient_id together to target another inbox.",
             "parameters": [
-                {
-                    "name": "id",
-                    "in": "path",
-                    "required": true,
-                    "schema": {
-                        "type": "integer",
-                        "minimum": 1
-                    }
-                }
+                { "name": "id", "in": "path", "required": true, "schema": { "type": "integer", "minimum": 1 } },
+                { "name": "recipient_type", "in": "query", "description": "Admin only; requires recipient_id", "schema": { "type": "string", "enum": ["Customer", "Provider", "Admin"] } },
+                { "name": "recipient_id", "in": "query", "description": "Admin only; requires recipient_type", "schema": { "type": "integer", "minimum": 1 } }
             ],
             "responses": {
                 "200": {

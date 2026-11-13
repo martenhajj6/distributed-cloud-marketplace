@@ -15,27 +15,6 @@ router.use("/discount-codes", require("./discount"));
 router.use("/notifications", require("./notifications"));
 
 // Payments
-router.post("/payments", handle(async (req, res) => {
-    const invoiceId = positiveInteger(req.body.invoice_id);
-    const raw = req.body.provider_allocations;
-
-    if (!invoiceId || (raw != null && (!Array.isArray(raw) || !raw.length || raw.some(a => !a || typeof a !== "object" || Array.isArray(a)))))
-        throw bad("Invalid invoice ID or allocations.");
-
-    const allocations = raw?.map(a => ({
-        provider_id: positiveInteger(a.provider_id),
-        gross_amount: positiveAmount(a.gross_amount)
-    }));
-
-    if (allocations?.some(a => !a.provider_id || !a.gross_amount))
-        throw bad("Invalid provider ID or amount.");
-
-    if (allocations && new Set(allocations.map(a => a.provider_id)).size !== allocations.length)
-        throw bad("Duplicate provider ID.");
-
-    res.status(201).json(await payment.createPayment({ invoiceId, allocations }));
-}, "Could not simulate payment."));
-
 router.get("/payments", handle(async (req, res) => {
     res.json(await payment.listPayments({ invoiceId: optionalId(req.query.invoice_id, "invoice_id") }));
 }, "Could not load payments."));
@@ -71,15 +50,6 @@ router.get("/earnings", handle(async (req, res) => {
 router.get("/withdrawals", handle(async (req, res) => {
     res.json(await withdrawal.listWithdrawals(optionalId(req.query.provider_id, "provider_id")));
 }, "Could not load withdrawals."));
-
-router.post("/withdrawals", handle(async (req, res) => {
-    const providerId = positiveInteger(req.body.provider_id);
-    if (!providerId) throw bad("Invalid provider ID.");
-
-    res.status(201).json(await withdrawal.createWithdrawal({
-        providerId, amount: req.body.amount, note: req.body.note
-    }));
-}, "Could not create withdrawal."));
 
 router.patch("/withdrawals/:id", handle(async (req, res) => {
     const id = positiveInteger(req.params.id);

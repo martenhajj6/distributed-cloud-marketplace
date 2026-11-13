@@ -2,6 +2,14 @@ const { where } = require("./query");
 // Data Access Layer: SQL statements for invoiceService.
 const db = require("./dbconn");
 
+const findCustomer = (connection = db, customerId) => connection.execute(
+    "SELECT user_id, role FROM Users WHERE user_id = ? LIMIT 1", [customerId]
+);
+
+const findProviders = (connection = db, ids) => connection.execute(
+    `SELECT user_id FROM Users WHERE LOWER(role) = 'provider' AND user_id IN (${ids.map(() => '?').join(',')})`, ids
+);
+
 const statement1 = (connection = db, params = []) => connection.execute(`
         SELECT provider_id, resource_type, cloud_class, quantity, unit_price, line_total
         FROM invoice_items WHERE invoice_id = ? ORDER BY id
@@ -36,7 +44,7 @@ const statement7 = (connection = db, params = []) => connection.execute(`
         FOR UPDATE
     `, params);
 
-const statement8 = (connection = db, params = []) => connection.execute("SELECT resource_type, cloud_class, unit_price FROM pricing_rules", params);
+const statement8 = (connection = db, params = []) => connection.execute("SELECT resource_type, cloud_class, unit_price FROM pricing_rules WHERE active = TRUE", params);
 
 async function listInvoices(db, customerId = null) {
     const w = where({ "bp.customer_id": customerId });
@@ -60,4 +68,16 @@ async function findInvoice(db, id, customerId) {
     return invoice || null;
 }
 
-module.exports = { findInvoice, listInvoices, statement1, statement2, statement3, statement4, statement5, statement6, statement7, statement8 };
+const lockInvoice = (connection, id) => connection.execute(`
+    SELECT id, invoice_number, status FROM invoices WHERE id = ? FOR UPDATE
+`, [id]);
+
+const paymentExists = (connection, id) => connection.execute(
+    "SELECT id FROM payments WHERE invoice_id = ? LIMIT 1", [id]
+);
+
+const cancelInvoice = (connection, id) => connection.execute(
+    "UPDATE invoices SET status = 'Cancelled' WHERE id = ? AND status = 'Unpaid'", [id]
+);
+
+module.exports = { findProviders, lockInvoice, paymentExists, cancelInvoice, findCustomer, findInvoice, listInvoices, statement1, statement2, statement3, statement4, statement5, statement6, statement7, statement8 };

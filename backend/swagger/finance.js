@@ -55,6 +55,8 @@ module.exports = {
                 "Finance"
             ],
             "summary": "Record a simulated refund",
+            "description": "Optional Idempotency-Key replays a successful admin refund without applying it again. Reuse a key only for retries of the same refund; changed data returns 409.",
+            "parameters": [{ "name": "Idempotency-Key", "in": "header", "required": false, "schema": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[!-~]+$" } }],
             "requestBody": {
                 "required": true,
                 "content": {
@@ -76,6 +78,7 @@ module.exports = {
                                 },
                                 "reason": {
                                     "type": "string",
+                                    "maxLength": 255,
                                     "nullable": true
                                 }
                             }

@@ -29,12 +29,13 @@ async function listEarnings(providerId) {
             SELECT provider_id, SUM(amount) AS committed
             FROM withdrawal_requests
             WHERE status IN ${COMMITTED}
+            ${providerId == null ? "" : "AND provider_id = ?"}
             GROUP BY provider_id
         ) w ON w.provider_id = pe.provider_id
         ${w.sql}
         GROUP BY pe.provider_id, w.committed
         ORDER BY pe.provider_id
-    `, w.params);
+    `, [...(providerId == null ? [] : [providerId]), ...w.params]);
 }
 
 async function balanceRows(conn, providerId, lock) {
@@ -75,7 +76,13 @@ const lockWithdrawalRequest = (connection, params = []) =>
         params
     );
 
+const withdrawalOwner = async (connection, id) => {
+    const [[row]] = await connection.execute("SELECT provider_id FROM withdrawal_requests WHERE id = ?", [id]);
+    return row?.provider_id ?? null;
+};
+
 module.exports = {
+    withdrawalOwner,
     listEarningLines,
     listEarnings,
     balanceRows,

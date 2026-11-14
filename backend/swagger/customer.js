@@ -101,6 +101,7 @@ module.exports = {
                 "Customer"
             ],
             "summary": "Request a refund (Customer)",
+            "parameters": [{ "name": "Idempotency-Key", "in": "header", "required": false, "description": "Reuse for retries of the same operation; changed data returns 409.", "schema": { "type": "string", "maxLength": 128, "pattern": "^[!-~]+$" } }],
             "description": "Creates a Pending request; nothing is refunded until an admin approves it. Omit amount to request everything still refundable.",
             "requestBody": {
                 "required": true,

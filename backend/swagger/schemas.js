@@ -50,19 +50,23 @@ module.exports = {
             },
             "cpu_cores": {
                 "type": "number",
-                "minimum": 0
+                "minimum": 0,
+                    "maximum": 9999999999.9999
             },
             "ram_gb": {
                 "type": "number",
-                "minimum": 0
+                "minimum": 0,
+                    "maximum": 9999999999.9999
             },
             "storage_gb": {
                 "type": "number",
-                "minimum": 0
+                "minimum": 0,
+                    "maximum": 9999999999.9999
             },
             "gpu_units": {
                 "type": "number",
                 "minimum": 0,
+                    "maximum": 9999999999.9999,
                 "default": 0
             }
         }

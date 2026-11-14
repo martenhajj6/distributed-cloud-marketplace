@@ -43,6 +43,7 @@ module.exports = {
                 "Provider"
             ],
             "summary": "Request a withdrawal (Provider)",
+            "parameters": [{ "name": "Idempotency-Key", "in": "header", "required": false, "description": "Reuse for retries of the same operation; changed data returns 409.", "schema": { "type": "string", "maxLength": 128, "pattern": "^[!-~]+$" } }],
             "requestBody": {
                 "required": true,
                 "content": {

@@ -1,7 +1,7 @@
 const db = require("../../DAL/dbconn");
 const { withTransaction } = db;
 const repository = require("../../DAL/finance/invoice");
-const { HttpError, money } = require("../../utils/util");
+const { HttpError, money, sumMoney } = require("../../utils/util");
 const { bad, makeRef } = require("../../utils/helpers");
 const discounts = require("./discountService");
 const { logAudit } = require("../../DAL/finance/audit");
@@ -11,7 +11,7 @@ async function priceItems(db, items) {
     if (!Array.isArray(items) || !items.length)
         throw bad("At least one invoice item is required.");
 
-    const [rules] = await repository.statement8(db);
+    const [rules] = await repository.listActivePrices(db);
     const prices = new Map(rules.map(r => [`${r.resource_type}|${r.cloud_class}`, Number(r.unit_price)]));
 
     return items.map(item => {
@@ -55,12 +55,12 @@ async function createInvoiceRecord(db, { customerId, periodStart, periodEnd, ite
     if (existingProviders.length !== providerIds.length)
         throw bad("One or more Provider IDs do not belong to provider accounts.");
 
-    const [periods] = await repository.statement7(db, [customerId, periodStart, periodEnd]);
+    const [periods] = await repository.lockBillingPeriod(db, [customerId, periodStart, periodEnd]);
 
     let periodId = periods[0]?.id;
 
     if (periodId) {
-        const [[existing]] = await repository.statement6(db, [periodId]);
+        const [[existing]] = await repository.findInvoiceForPeriod(db, [periodId]);
 
         if (existing)
             throw new HttpError(409, {
@@ -70,7 +70,7 @@ async function createInvoiceRecord(db, { customerId, periodStart, periodEnd, ite
             });
     } else {
         try {
-            const [result] = await repository.statement5(db, [customerId, periodStart, periodEnd]);
+            const [result] = await repository.insertBillingPeriod(db, [customerId, periodStart, periodEnd]);
 
             periodId = result.insertId;
         } catch (error) {
@@ -82,23 +82,23 @@ async function createInvoiceRecord(db, { customerId, periodStart, periodEnd, ite
 
     const discount = discountCode ? await discounts.loadUsableDiscount(db, discountCode) : null;
     const priced = await priceItems(db, items);
-    const subtotal = money(priced.reduce((sum, item) => sum + item.line_total, 0));
+    const subtotal = sumMoney(priced.map(item => item.line_total));
     if (subtotal > 9999999999.99) throw bad("Invoice subtotal exceeds the supported limit.");
     const discountAmount = discount ? discounts.calculateDiscount(discount, subtotal) : 0;
     const total = Math.max(0, money(subtotal - discountAmount));
 
     if (discount) {
-        const [result] = await repository.statement4(db, [discount.id]);
+        const [result] = await repository.redeemDiscount(db, [discount.id]);
 
         if (!result.affectedRows) throw new HttpError(409, { error: "Discount usage limit reached." });
     }
 
     const invoiceNumber = makeRef("INV");
 
-    const [invoice] = await repository.statement3(db, [invoiceNumber, periodId, subtotal, total, discount?.id ?? null, discountAmount]);
+    const [invoice] = await repository.insertInvoice(db, [invoiceNumber, periodId, subtotal, total, discount?.id ?? null, discountAmount]);
 
     for (const item of priced)
-        await repository.statement2(db, [invoice.insertId, item.provider_id ?? null, item.resource_type, item.cloud_class,
+        await repository.insertItem(db, [invoice.insertId, item.provider_id ?? null, item.resource_type, item.cloud_class,
             item.quantity, item.unit_price, item.line_total]);
 
     return {
@@ -123,7 +123,7 @@ async function getInvoice(db, id, customerId = null) {
 
     if (!invoice) return null;
 
-    const [items] = await repository.statement1(db, [id]);
+    const [items] = await repository.listItems(db, [id]);
 
     return { ...invoice, currency: "USD", items };
 }

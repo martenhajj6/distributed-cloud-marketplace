@@ -2,7 +2,7 @@ const db = require("../dbconn");
 // Finance notifications now share Developer 1's Notifications table.
 // Keep the original function arguments and returned field names for BLL compatibility.
 
-async function statement1(connection, params = []) {
+async function insertNotification(connection, params = []) {
     const [recipientType, recipientId, notificationType, title, message, paymentId, refundId] = params;
     const role = String(recipientType || "").toLowerCase();
     if (!["customer", "provider", "admin"].includes(role)) {
@@ -75,4 +75,4 @@ async function notifyAdmins(connection, { title, message, paymentId, notificatio
     return result.affectedRows;
 }
 
-module.exports = { listNotifications, markNotificationRead, notifyAdmins, statement1 };
+module.exports = { listNotifications, markNotificationRead, notifyAdmins, insertNotification };

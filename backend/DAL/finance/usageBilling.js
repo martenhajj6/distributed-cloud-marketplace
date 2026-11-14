@@ -1,7 +1,8 @@
 // Data Access Layer: SQL statements for usageBillingService.
 const db = require("../dbconn");
+const { HttpError } = require("../../utils/util");
 
-const statement1 = (connection = db, params = []) => connection.execute("SELECT DATE_FORMAT(LEAST(CAST(? AS DATETIME), NOW()), '%Y-%m-%d %H:%i:%s') AS cap", params);
+const billingCap = (connection = db, params = []) => connection.execute("SELECT DATE_FORMAT(LEAST(CAST(? AS DATETIME), NOW()), '%Y-%m-%d %H:%i:%s') AS cap", params);
 
 async function loadUsage(db, customerId, start, cap) {
     const params = [customerId, cap, start];
@@ -28,7 +29,11 @@ async function loadUsage(db, customerId, start, cap) {
         FROM InstanceStorageUsage
         WHERE customer_id = ? AND started_at < CAST(? AS DATETIME)
           AND (ended_at IS NULL OR ended_at > CAST(? AS DATETIME))
-    `, params);
+    `, params).catch(error => {
+        if (error.code === "ER_NO_SUCH_TABLE")
+            throw new HttpError(503, { error: "Storage usage metering is unavailable. Apply the finance storage usage migration before billing." });
+        throw error;
+    });
 
     return { vms, resources: [...resources, ...storage] };
 }
@@ -65,4 +70,4 @@ async function customersWithUsage(connection, start, end) {
     return rows.map(row => Number(row.customer_id));
 }
 
-module.exports = { loadUsage, statement1, customersWithUsage, unmeteredRunningVms };
+module.exports = { loadUsage, billingCap, customersWithUsage, unmeteredRunningVms };

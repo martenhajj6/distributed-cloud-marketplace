@@ -3,7 +3,7 @@ const fields = "id, code, discount_type, discount_value, max_uses, used_count, e
 // Data Access Layer: SQL statements for discountService.
 const db = require("../dbconn");
 
-const statement1 = (connection = db, params = []) => connection.execute(`
+const insertDiscount = (connection = db, params = []) => connection.execute(`
         INSERT INTO discount_codes (code, discount_type, discount_value, max_uses, expires_at, active)
         VALUES (?, ?, ?, ?, ?, ?)
     `, params);
@@ -29,4 +29,4 @@ const updateDiscount = (db, id, values) => {
     return db.execute(`UPDATE discount_codes SET ${keys.map(k => `${k} = ?`).join(", ")} WHERE id = ?`, [...keys.map(k => values[k]), id]);
 };
 
-module.exports = { listDiscounts, updateDiscount, byId, findByCode, statement1 };
+module.exports = { listDiscounts, updateDiscount, byId, findByCode, insertDiscount };

@@ -1,5 +1,6 @@
 const { handle } = require("../../middleware/access");
 const express = require("express");
+const { idempotencyKey } = require("../../../utils/helpers");
 
 const earnings = require("../../../BLL/finance/providerFinanceService");
 
@@ -25,7 +26,8 @@ router.post("/withdrawals", handle(async (req, res) => {
     res.status(201).json(await earnings.createWithdrawal({
         providerId: req.user.id,
         amount: req.body.amount,
-        note: req.body.note
+        note: req.body.note,
+        requestKey: idempotencyKey(req.get("Idempotency-Key"))
     }));
 }, "Could not create withdrawal request."));
 

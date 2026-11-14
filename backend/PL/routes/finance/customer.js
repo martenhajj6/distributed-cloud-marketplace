@@ -1,7 +1,7 @@
 const { handle } = require("../../middleware/access");
 const express = require("express");
 const { positiveInteger } = require("../../../utils/util");
-const { bad, notFound, positiveAmount } = require("../../../utils/helpers");
+const { bad, notFound, positiveAmount, idempotencyKey } = require("../../../utils/helpers");
 const billing = require("../../../BLL/finance/invoiceService");
 const payment = require("../../../BLL/finance/paymentService");
 const refund = require("../../../BLL/finance/refundService");
@@ -31,17 +31,19 @@ router.get("/payments", handle(async (req, res) => {
 
 // Customers initiate payments for their own unpaid invoices.
 router.post("/payments", handle(async (req, res) => {
-    const invoiceId = positiveInteger(req.body.invoice_id);
+    const invoiceId = typeof req.body.invoice_id === "number" ? positiveInteger(req.body.invoice_id) : null;
     if (!invoiceId) throw bad("Select a valid invoice.");
     res.status(201).json(await payment.createPayment({ invoiceId, customerId: req.user.id }));
 }, "Could not pay invoice."));
 
 // Request refund
 router.post("/refunds", handle(async (req, res) => {
-    const paymentId = positiveInteger(req.body.payment_id);
+    const paymentId = typeof req.body.payment_id === "number" ? positiveInteger(req.body.payment_id) : null;
     const reason = typeof req.body.reason === "string" ? req.body.reason.trim() : "";
-    const hasAmount = req.body.amount != null;
-    const amount = hasAmount ? positiveAmount(req.body.amount) : undefined;
+    const hasAmount = Object.hasOwn(req.body, "amount");
+    const amount = hasAmount
+        ? (typeof req.body.amount === "number" ? positiveAmount(req.body.amount) : null)
+        : undefined;
 
     if (!paymentId) throw bad("Payment ID must be a positive integer.");
     if (reason.length < 3 || reason.length > 255)
@@ -49,7 +51,8 @@ router.post("/refunds", handle(async (req, res) => {
     if (hasAmount && !amount) throw bad("Refund amount must be a positive amount.");
 
     const request = await refund.createRefundRequest({
-        customerId: req.user.id, paymentId, amount, reason
+        customerId: req.user.id, paymentId, amount, reason,
+        requestKey: idempotencyKey(req.get("Idempotency-Key"))
     });
 
     res.status(201).json({

@@ -1,8 +1,10 @@
 const repository = require("../../DAL/finance/providerFinance");
 const { logAudit } = require("../../DAL/finance/audit");
 const { withTransaction } = require("../../DAL/dbconn");
-const { HttpError, money } = require("../../utils/util");
-const { bad, cleanText, positiveAmount, withCurrency } = require("../../utils/helpers");
+const { HttpError, money, sumMoney } = require("../../utils/util");
+const { bad, optionalText, positiveAmount, withCurrency } = require("../../utils/helpers");
+const { lockProviders } = require("../../DAL/finance/locks");
+const { financialTransaction } = require("./financialTransaction");
 
 // Earnings
 async function getEarnings(providerId = null) {
@@ -26,8 +28,8 @@ const listEarningLines = providerId => repository.listEarningLines([providerId])
 async function providerBalance(conn, providerId, lock = false) {
     const { earned, withdrawn } = await repository.balanceRows(conn, providerId, lock);
 
-    const total = money(earned.reduce((sum, row) => sum + Number(row.net_amount), 0));
-    const committed = money(withdrawn.reduce((sum, row) => sum + Number(row.amount), 0));
+    const total = sumMoney(earned.map(row => row.net_amount));
+    const committed = sumMoney(withdrawn.map(row => row.amount));
 
     return {
         total,
@@ -42,13 +44,16 @@ async function listWithdrawals(providerId = null) {
     return rows.map(withCurrency);
 }
 
-async function createWithdrawal({ providerId, amount, note }) {
+async function createWithdrawal({ providerId, amount, note, requestKey = null }) {
     const value = positiveAmount(amount);
 
     if (!value)
         throw bad("Provide a positive withdrawal amount.");
+    const validatedNote = optionalText(note, "Withdrawal note");
 
-    return withTransaction(async connection => {
+    return financialTransaction({ id: providerId, role: "Provider" }, requestKey,
+        "provider-withdrawal", { amount: value, note: validatedNote }, async connection => {
+        await lockProviders(connection, [providerId]);
         const { available } = await providerBalance(connection, providerId, true);
 
         if (value > available) {
@@ -61,7 +66,7 @@ async function createWithdrawal({ providerId, amount, note }) {
         const [result] = await repository.insertWithdrawal(connection, [
             providerId,
             value,
-            cleanText(note)
+            validatedNote
         ]);
 
         return {
@@ -83,6 +88,9 @@ const NEXT_STATUS = {
 
 async function updateWithdrawal(id, status, actor) {
     return withTransaction(async connection => {
+        const providerId = await repository.withdrawalOwner(connection, id);
+        if (providerId == null) throw new HttpError(404, { error: "Withdrawal not found." });
+        await lockProviders(connection, [providerId]);
         const [rows] = await repository.lockWithdrawalRequest(connection, [id]);
 
         if (!rows.length)

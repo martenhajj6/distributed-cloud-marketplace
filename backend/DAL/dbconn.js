@@ -43,4 +43,22 @@ async function withTransaction(callback) {
 }
 
 con.withTransaction = withTransaction;
+// All reporting reads share one MVCC snapshot, even if the server defaults to READ COMMITTED.
+con.withReadSnapshot = async callback => {
+    const connection = await con.getConnection();
+    try {
+        await connection.query("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ");
+        await connection.query("START TRANSACTION WITH CONSISTENT SNAPSHOT, READ ONLY");
+        const result = await callback(connection);
+        await connection.commit();
+        return result;
+    } catch (error) {
+        try { await connection.rollback(); } catch (rollbackError) {
+            console.error("Could not roll back reporting snapshot:", rollbackError);
+        }
+        throw error;
+    } finally {
+        connection.release();
+    }
+};
 module.exports = con;

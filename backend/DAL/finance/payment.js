@@ -1,27 +1,27 @@
 const { query, where } = require("../query");
 // Data Access Layer: SQL statements for paymentService.
 
-const statement1 = (connection, params = []) => connection.execute("UPDATE invoices SET status = 'Paid' WHERE id = ?", params);
+const markInvoicePaid = (connection, params = []) => connection.execute("UPDATE invoices SET status = 'Paid' WHERE id = ?", params);
 
-const statement2 = (connection, params = []) => connection.execute(`
+const insertEarnings = (connection, params = []) => connection.execute(`
                 INSERT INTO provider_earnings
                 (payment_id, provider_id, gross_amount, commission_rate, commission_amount, net_amount)
                 VALUES (?, ?, ?, ?, ?, ?)
             `, params);
 
-const statement3 = (connection, params = []) => connection.execute(`
+const insertPayment = (connection, params = []) => connection.execute(`
             INSERT INTO payments (payment_reference, invoice_id, amount, status, simulated)
             VALUES (?, ?, ?, 'Succeeded', 1)
         `, params);
 
-const statement4 = (connection, params = []) => connection.execute(`
+const lockInvoice = (connection, params = []) => connection.execute(`
             SELECT i.id, i.total, i.status, bp.customer_id
             FROM invoices i
             JOIN billing_periods bp ON bp.id = i.billing_period_id
             WHERE i.id = ? FOR UPDATE
         `, params);
 
-const statement5 = (connection, params = []) => connection.execute(`
+const providerInvoiceTotals = (connection, params = []) => connection.execute(`
         SELECT provider_id, SUM(line_total) AS gross
         FROM invoice_items
         WHERE invoice_id = ?
@@ -43,4 +43,4 @@ function listPayments({ invoiceId = null, customerId = null } = {}) {
     `, w.params);
 }
 
-module.exports = { listPayments, statement1, statement2, statement3, statement4, statement5 };
+module.exports = { listPayments, markInvoicePaid, insertEarnings, insertPayment, lockInvoice, providerInvoiceTotals };

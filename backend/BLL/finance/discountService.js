@@ -1,16 +1,31 @@
 const db = require("../../DAL/dbconn");
 const { withTransaction } = db;
 const repository = require("../../DAL/finance/discount");
-const { money } = require("../../utils/util");
+const { money, prorateMoney, isDate } = require("../../utils/util");
+const { MAX_MONEY } = require("../../utils/constants");
 const { logAudit } = require("../../DAL/finance/audit");
 const { bad, notFound, positiveAmount } = require("../../utils/helpers");
 
 const CODE_RE = /^[A-Z0-9_-]{1,40}$/;
 const TYPES = ["Percentage", "Fixed"];
-const blank = v => v == null || v === "";
+
+// Store RFC3339 input as UTC in MySQL's timezone-free DATETIME column.
+function expirationDate(value) {
+    if (value == null) return null;
+    if (typeof value !== "string") throw bad("Invalid expiration date.");
+    const match = /^(\d{4}-\d{2}-\d{2})[Tt](\d{2}):(\d{2}):(\d{2})(?:\.\d+)?([Zz]|[+-]\d{2}:\d{2})$/.exec(value);
+    if (!match || !isDate(match[1]) || Number(match[2]) > 23 || Number(match[3]) > 59 || Number(match[4]) > 59)
+        throw bad("Expiration must be a valid RFC3339 date-time with a timezone.");
+    const timestamp = Date.parse(value);
+    if (!Number.isFinite(timestamp)) throw bad("Invalid expiration date.");
+    const utc = new Date(timestamp).toISOString();
+    if (utc.slice(0, 4) < "1000" || utc.slice(0, 4) > "9999" || utc.length !== 24)
+        throw bad("Expiration is outside the supported date range.");
+    return utc.slice(0, 19).replace("T", " ");
+}
 
 const normalizeCode = value =>
-    value == null ? null : String(value).trim().toUpperCase() || null;
+    typeof value === "string" ? value.trim().toUpperCase() || null : null;
 
 const findByCode = repository.findByCode;
 
@@ -22,7 +37,7 @@ function unusableReason(discount) {
     if (discount.max_uses !== null && Number(discount.used_count) >= Number(discount.max_uses))
         return "limit_reached";
 
-    if (discount.expires_at && new Date(discount.expires_at).getTime() < Date.now())
+    if (discount.expires_at && Date.parse(discount.expires_at.replace(" ", "T") + "Z") <= Date.now())
         return "expired";
 
     return null;
@@ -40,7 +55,7 @@ function calculateDiscount(discount, subtotal) {
     const value = Number(discount.discount_value);
 
     return money(discount.discount_type === "Percentage"
-        ? subtotal * value / 100
+        ? prorateMoney(subtotal, value, 100)
         : Math.min(subtotal, value));
 }
 
@@ -76,21 +91,18 @@ function validate(body = {}, partial = false) {
     }
 
     if (has("max_uses")) {
-        v.max_uses = blank(body.max_uses) ? null : Number(body.max_uses);
+        v.max_uses = body.max_uses ?? null;
 
-        if (v.max_uses !== null && (!Number.isInteger(v.max_uses) || v.max_uses < 1))
+        if (v.max_uses !== null && (!Number.isInteger(v.max_uses) || v.max_uses < 1 || v.max_uses > 2147483647))
             throw bad("Invalid usage limit.");
     }
 
     if (has("expires_at")) {
-        v.expires_at = body.expires_at || null;
-
-        if (v.expires_at && (typeof v.expires_at !== "string" || Number.isNaN(Date.parse(v.expires_at))))
-            throw bad("Invalid expiration date.");
+        v.expires_at = expirationDate(body.expires_at);
     }
 
     if (body.active !== undefined) {
-        if (![true, false, 0, 1].includes(body.active)) throw bad("Invalid active value.");
+        if (typeof body.active !== "boolean") throw bad("Invalid active value.");
         v.active = Number(Boolean(body.active));
     }
 
@@ -110,7 +122,7 @@ async function createDiscount(db, body, admin) {
     const v = validate(body);
     checkPercentage(v.discount_type, v.discount_value);
 
-    const [result] = await repository.statement1(db, [v.code, v.discount_type, v.discount_value, v.max_uses, v.expires_at, v.active ?? 1]);
+    const [result] = await repository.insertDiscount(db, [v.code, v.discount_type, v.discount_value, v.max_uses, v.expires_at, v.active ?? 1]);
 
     await logAudit(db, admin, "DISCOUNT_CODE_CREATED", "discount_code", result.insertId, v);
 
@@ -142,11 +154,11 @@ async function updateDiscount(db, id, body, admin) {
 // Public checkout validation: optional subtotal returns the discounted total
 async function validateDiscount(db, body = {}) {
     const code = normalizeCode(body.code);
-    const hasSubtotal = body.subtotal != null;
-    const subtotal = hasSubtotal ? Number(body.subtotal) : null;
+    const hasSubtotal = Object.hasOwn(body, "subtotal");
+    const subtotal = hasSubtotal ? body.subtotal : null;
 
     if (!code || !CODE_RE.test(code) ||
-        (hasSubtotal && (body.subtotal === "" || !Number.isFinite(subtotal) || subtotal < 0)))
+        (hasSubtotal && (typeof subtotal !== "number" || !Number.isFinite(subtotal) || subtotal < 0 || subtotal > MAX_MONEY)))
         throw bad("Invalid code or subtotal.");
 
     const { discount, reason } = await checkDiscount(db, code);

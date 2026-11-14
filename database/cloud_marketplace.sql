@@ -190,6 +190,17 @@ CREATE TABLE VmUsage (
 ) ENGINE=InnoDB;
 
 -- ---------------------- STORAGE AND MANAGED SERVICES -------------------------
+CREATE TABLE InstanceStorageUsage (
+    vm_id BIGINT NOT NULL PRIMARY KEY,
+    customer_id BIGINT NOT NULL,
+    provider_id BIGINT NOT NULL,
+    cloud_class VARCHAR(32) NOT NULL,
+    quantity DECIMAL(12,3) NOT NULL,
+    started_at DATETIME NOT NULL,
+    ended_at DATETIME NULL,
+    KEY idx_storage_customer (customer_id, started_at, ended_at)
+) ENGINE=InnoDB;
+
 CREATE TABLE BlobStorage (
     blob_id INT AUTO_INCREMENT PRIMARY KEY,
     group_id INT NOT NULL,

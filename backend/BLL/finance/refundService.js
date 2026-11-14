@@ -1,13 +1,15 @@
 const repository = require("../../DAL/finance/refund");
-const { HttpError, money, allocateAmounts } = require("../../utils/util");
+const { HttpError, money, prorateMoney, allocateAmounts } = require("../../utils/util");
 const { logAudit } = require("../../DAL/finance/audit");
 const { withTransaction } = require("../../DAL/dbconn");
 const { bad, makeRef, positiveAmount, withCurrency } = require("../../utils/helpers");
 const { notify, notifyAdmins } = require("./notificationService");
 const { providerBalance } = require("./providerFinanceService");
+const { financialTransaction } = require("./financialTransaction");
+const { lockProviders } = require("../../DAL/finance/locks");
 
 async function refundedTotal(connection, paymentId) {
-    const [[row]] = await repository.statement8(connection, [paymentId]);
+    const [[row]] = await repository.refundedTotal(connection, [paymentId]);
 
     return money(row.total);
 }
@@ -35,17 +37,18 @@ async function applyRefund(connection, { paymentId, amount, reason }) {
             remaining_refundable: remaining
         });
 
-    const [earnings] = await repository.statement7(connection, [paymentId]);
+    const [providers] = await repository.paymentProviders(connection, paymentId);
+    await lockProviders(connection, providers.map(row => row.provider_id));
+    const [earnings] = await repository.lockPaymentEarnings(connection, [paymentId]);
 
     const adjustments = [];
-    const ratio = refundAmount / remaining;
 
     const amounts = allocateAmounts(refundAmount, earnings.map(earning => Number(earning.gross_amount)));
 
     for (const [index, earning] of earnings.entries()) {
         const gross = amounts[index];
         const commission = money(Math.max(gross - Number(earning.net_amount),
-            Math.min(gross, Number(earning.commission_amount), money(earning.commission_amount * ratio))));
+            Math.min(gross, Number(earning.commission_amount), prorateMoney(earning.commission_amount, refundAmount, remaining))));
         const net = money(gross - commission);
 
         const balance = await providerBalance(connection, earning.provider_id, true);
@@ -55,7 +58,7 @@ async function applyRefund(connection, { paymentId, amount, reason }) {
                 error: `Refund would conflict with existing withdrawals for provider ${earning.provider_id}.`
             });
 
-        await repository.statement6(connection, [gross, commission, net, earning.id]);
+        await repository.reduceEarnings(connection, [gross, commission, net, earning.id]);
 
         adjustments.push({
             provider_id: earning.provider_id,
@@ -67,10 +70,10 @@ async function applyRefund(connection, { paymentId, amount, reason }) {
 
     const refundReference = makeRef("REF");
 
-    const [result] = await repository.statement5(connection, [refundReference, paymentId, refundAmount, reason ?? null]);
+    const [result] = await repository.insertRefund(connection, [refundReference, paymentId, refundAmount, reason ?? null]);
 
     if (refundAmount === remaining)
-        await repository.statement4(connection, [paymentId]);
+        await repository.markPaymentRefunded(connection, [paymentId]);
 
     const tell = (to, id, title, message) => notify(connection, {
         to, id, type: "RefundSucceeded", title, message, paymentId, refundId: result.insertId
@@ -99,11 +102,12 @@ async function listRefunds({ paymentId = null } = {}) {
     return rows;
 }
 
-function createRefundRequest({ customerId, paymentId, amount, reason }) {
-    return withTransaction(async connection => {
+function createRefundRequest({ customerId, paymentId, amount, reason, requestKey = null }) {
+    return financialTransaction({ id: customerId, role: "Customer" }, requestKey,
+        "customer-refund-request", { paymentId, amount: amount ?? null, reason }, async connection => {
         const payment = await lockPayment(connection, paymentId, customerId);
 
-        const [[pending]] = await repository.statement3(connection, [paymentId]);
+        const [[pending]] = await repository.pendingRequestTotal(connection, [paymentId]);
 
         const available = money(
             Number(payment.amount) - await refundedTotal(connection, paymentId) - money(pending.total)
@@ -111,12 +115,12 @@ function createRefundRequest({ customerId, paymentId, amount, reason }) {
 
         const requested = amount == null ? available : positiveAmount(amount);
 
-        if (!requested || requested > available)
+        if (!requested || requested <= 0 || requested > available)
             throw bad("Invalid refund amount or insufficient available balance.", {
                 available_to_request: Math.max(0, available)
             });
 
-        const [result] = await repository.statement2(connection, [paymentId, customerId, requested, reason ?? null]);
+        const [result] = await repository.insertRequest(connection, [paymentId, customerId, requested, reason ?? null]);
 
         await notify(connection, {
             to: "Customer", id: customerId, type: "RefundRequested", title: "Refund requested",
@@ -180,7 +184,7 @@ function decideRefundRequest({ requestId, status, adminNote, admin }) {
             });
         }
 
-        await repository.statement1(connection, [status, adminNote ?? null, admin.id, refund?.refund_id ?? null, requestId]);
+        await repository.decideRequest(connection, [status, adminNote ?? null, admin.id, refund?.refund_id ?? null, requestId]);
 
         await logAudit(connection, admin, `REFUND_REQUEST_${status.toUpperCase()}`, "refund_request", requestId, {
             payment_id: request.payment_id,
@@ -200,8 +204,9 @@ function decideRefundRequest({ requestId, status, adminNote, admin }) {
     });
 }
 
-async function recordRefund({ paymentId, amount, reason }, actor) {
-    const result = await withTransaction(async connection => {
+async function recordRefund({ paymentId, amount, reason }, actor, requestKey = null) {
+    return financialTransaction(actor, requestKey, "admin-refund",
+        { paymentId, amount, reason: reason ?? null }, async connection => {
         const created = await applyRefund(connection, { paymentId, amount, reason });
 
         await logAudit(connection, actor, "REFUND_RECORDED_BY_ADMIN", "refund", created.refund_id, {
@@ -210,8 +215,6 @@ async function recordRefund({ paymentId, amount, reason }, actor) {
 
         return created;
     });
-
-    return result;
 }
 
 module.exports = { recordRefund, applyRefund, listRefunds, createRefundRequest, listRefundRequests, decideRefundRequest };

@@ -18,7 +18,7 @@ async function buildUsageItems(db, customerId, periodStart, periodEnd) {
     const start = `${periodStart} 00:00:00`;
     const end = `${periodEnd} 00:00:00`;
 
-    const [[row]] = await repository.statement1(db, [end]);
+    const [[row]] = await repository.billingCap(db, [end]);
 
     const cap = row.cap;
     const unmetered = await repository.unmeteredRunningVms(db, customerId, start, cap);

@@ -55,6 +55,7 @@ module.exports = {
                                 "max_uses": {
                                     "type": "integer",
                                     "minimum": 1,
+                                    "maximum": 2147483647,
                                     "nullable": true
                                 },
                                 "expires_at": {
@@ -132,6 +133,7 @@ module.exports = {
                                 "max_uses": {
                                     "type": "integer",
                                     "minimum": 1,
+                                    "maximum": 2147483647,
                                     "nullable": true
                                 },
                                 "expires_at": {
@@ -193,6 +195,7 @@ module.exports = {
                                 "subtotal": {
                                     "type": "number",
                                     "minimum": 0,
+                                    "maximum": 9999999999.99,
                                     "example": 50
                                 }
                             }

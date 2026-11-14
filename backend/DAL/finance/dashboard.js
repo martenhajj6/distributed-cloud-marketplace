@@ -1,4 +1,4 @@
-const { query } = require("../query");
+const { withReadSnapshot } = require("../dbconn");
 // Data Access Layer: SQL statements for finance.
 
 
@@ -7,11 +7,13 @@ const sum = (col, cond = "1=1") =>
     `COALESCE(SUM(CASE WHEN ${cond} THEN ${col} ELSE 0 END), 0)`;
 
 // Run a single-row query and convert every column to a number
-const one = async sql => Object.fromEntries(
-    Object.entries((await query(sql))[0]).map(([key, value]) => [key, Number(value)])
-);
-
 async function dashboardTotals() {
+    return withReadSnapshot(async connection => {
+    const one = async sql => Object.fromEntries(
+        Object.entries((await connection.execute(sql))[0][0])
+            .map(([key, value]) => [key, Number(value)])
+    );
+
     const [invoices, payments, refunds, earnings, withdrawals, discounts, notifications, requests] =
         await Promise.all([
             one(`SELECT COUNT(*) AS count, ${sum("total")} AS total,
@@ -44,6 +46,7 @@ async function dashboardTotals() {
         ]);
 
     return { invoices, payments, refunds, earnings, withdrawals, discounts, notifications, requests };
+    });
 }
 
 module.exports = { dashboardTotals };

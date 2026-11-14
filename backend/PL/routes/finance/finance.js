@@ -1,7 +1,7 @@
 const { handle } = require("../../middleware/access");
 const express = require("express");
 const { positiveInteger } = require("../../../utils/util");
-const { bad, cleanText, optionalId, positiveAmount } = require("../../../utils/helpers");
+const { bad, optionalText, optionalId, positiveAmount, idempotencyKey } = require("../../../utils/helpers");
 const payment = require("../../../BLL/finance/paymentService");
 const refund = require("../../../BLL/finance/refundService");
 const earnings = require("../../../BLL/finance/providerFinanceService");
@@ -21,14 +21,15 @@ router.get("/payments", handle(async (req, res) => {
 // Refunds
 router.post("/refunds", handle(async (req, res) => {
     const paymentId = positiveInteger(req.body.payment_id);
-    const amount = positiveAmount(req.body.amount);
+    const amount = typeof req.body.amount === "number" ? positiveAmount(req.body.amount) : null;
 
     if (!paymentId) throw bad("Payment ID must be a positive integer.");
     if (!amount) throw bad("Refund amount must be a positive amount.");
 
-    const reason = cleanText(req.body.reason);
+    const reason = optionalText(req.body.reason, "Refund reason");
 
-    const result = await refund.recordRefund({ paymentId, amount, reason }, req.user);
+    const requestKey = idempotencyKey(req.get("Idempotency-Key"));
+    const result = await refund.recordRefund({ paymentId, amount, reason }, req.user, requestKey);
 
     res.status(201).json({
         message: "Simulated refund recorded; no real money was transferred.",

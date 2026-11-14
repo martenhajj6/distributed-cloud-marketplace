@@ -10,41 +10,41 @@ const findProviders = (connection = db, ids) => connection.execute(
     `SELECT user_id FROM Users WHERE role = 'provider' AND user_id IN (${ids.map(() => '?').join(',')})`, ids
 );
 
-const statement1 = (connection = db, params = []) => connection.execute(`
+const listItems = (connection = db, params = []) => connection.execute(`
         SELECT provider_id, resource_type, cloud_class, quantity, unit_price, line_total
         FROM invoice_items WHERE invoice_id = ? ORDER BY id
     `, params);
 
-const statement2 = (connection = db, params = []) => connection.execute(`
+const insertItem = (connection = db, params = []) => connection.execute(`
             INSERT INTO invoice_items
             (invoice_id, provider_id, resource_type, cloud_class, quantity, unit_price, line_total)
             VALUES (?, ?, ?, ?, ?, ?, ?)
         `, params);
 
-const statement3 = (connection = db, params = []) => connection.execute(`
+const insertInvoice = (connection = db, params = []) => connection.execute(`
         INSERT INTO invoices
         (invoice_number, billing_period_id, status, subtotal, total, discount_code_id, discount_amount)
         VALUES (?, ?, 'Unpaid', ?, ?, ?, ?)
     `, params);
 
-const statement4 = (connection = db, params = []) => connection.execute(`
+const redeemDiscount = (connection = db, params = []) => connection.execute(`
             UPDATE discount_codes SET used_count = used_count + 1
             WHERE id = ? AND (max_uses IS NULL OR used_count < max_uses)
         `, params);
 
-const statement5 = (connection = db, params = []) => connection.execute(`
+const insertBillingPeriod = (connection = db, params = []) => connection.execute(`
                 INSERT INTO billing_periods (customer_id, period_start, period_end) VALUES (?, ?, ?)
             `, params);
 
-const statement6 = (connection = db, params = []) => connection.execute("SELECT id, invoice_number FROM invoices WHERE billing_period_id = ?", params);
+const findInvoiceForPeriod = (connection = db, params = []) => connection.execute("SELECT id, invoice_number FROM invoices WHERE billing_period_id = ?", params);
 
-const statement7 = (connection = db, params = []) => connection.execute(`
+const lockBillingPeriod = (connection = db, params = []) => connection.execute(`
         SELECT id FROM billing_periods
         WHERE customer_id = ? AND period_start = ? AND period_end = ?
         FOR UPDATE
     `, params);
 
-const statement8 = (connection = db, params = []) => connection.execute("SELECT resource_type, cloud_class, unit_price FROM pricing_rules WHERE active = TRUE", params);
+const listActivePrices = (connection = db, params = []) => connection.execute("SELECT resource_type, cloud_class, unit_price FROM pricing_rules WHERE active = TRUE", params);
 
 async function listInvoices(db, customerId = null) {
     const w = where({ "bp.customer_id": customerId });
@@ -80,4 +80,4 @@ const cancelInvoice = (connection, id) => connection.execute(
     "UPDATE invoices SET status = 'Cancelled' WHERE id = ? AND status = 'Unpaid'", [id]
 );
 
-module.exports = { findProviders, lockInvoice, paymentExists, cancelInvoice, findCustomer, findInvoice, listInvoices, statement1, statement2, statement3, statement4, statement5, statement6, statement7, statement8 };
+module.exports = { findProviders, lockInvoice, paymentExists, cancelInvoice, findCustomer, findInvoice, listInvoices, listItems, insertItem, insertInvoice, redeemDiscount, insertBillingPeriod, findInvoiceForPeriod, lockBillingPeriod, listActivePrices };

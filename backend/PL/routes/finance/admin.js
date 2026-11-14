@@ -44,9 +44,14 @@ router.get("/audit-log", handle(async (req, res) => {
 
     if (req.query.entity_type !== undefined && typeof req.query.entity_type !== "string")
         throw bad("Invalid entity type.");
+    const rawLimit = req.query.limit;
+    const limit = rawLimit === undefined ? 50 :
+        typeof rawLimit === "string" && /^[0-9]+$/.test(rawLimit) ? Number(rawLimit) : NaN;
+    if (!Number.isInteger(limit) || limit < 1 || limit > 200)
+        throw bad("limit must be an integer between 1 and 200.");
 
     res.json(await dashboard.listAudit({
-        limit: Math.min(positiveInteger(req.query.limit) || 50, 200),
+        limit,
         entityType: req.query.entity_type ?? null,
         entityId
     }));
